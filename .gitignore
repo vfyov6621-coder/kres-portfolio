@@ -52,3 +52,13 @@ prompt
 server.log
 # Skills directory
 /skills/
+
+# Firebase + deployment
+# Service account key used by `bun run bootstrap` — full admin access. NEVER commit.
+serviceAccount.json
+# Firebase emulator/runtime debug logs.
+firebase-debug.log
+firestore-debug.log
+ui-debug.log
+# Any other *.local config (e.g. .env.local is already covered by .env* above).
+*.local

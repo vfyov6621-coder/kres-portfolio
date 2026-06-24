@@ -167,3 +167,79 @@ Stage Summary:
 - Terminal boot now shows 20 processes (5 with progress bars).
 - Session persistence confirmed: httpOnly JWT cookie (7d) keeps the user logged in across reloads; edited content persists in localStorage.
 - Files changed: `src/lib/i18n.ts`, `src/lib/portfolio-store.ts` (new), `src/components/terminal/TerminalAuth.tsx`, `src/components/portfolio/WindowContents.tsx`.
+
+---
+Task ID: 20
+Agent: deploy-config-writer
+Task: Add the GitHub Pages deployment workflow, a step-by-step DEPLOY.md setup guide (Firebase + GitHub + local dev + caveats), and update `.gitignore` for Firebase/deployment artifacts. No source/script/config files touched.
+
+Work Log:
+- Created `.github/workflows/deploy.yml`:
+  - Triggers: `push` to `main` + manual `workflow_dispatch`.
+  - `concurrency: { group: pages, cancel-in-progress: true }` so a newer push cancels an in-progress deploy.
+  - `permissions: { contents: read, pages: write, id-token: write }` (the last two are required by `actions/upload-pages-artifact` + `actions/deploy-pages` for OIDC).
+  - `build` job on `ubuntu-latest`:
+    1. `actions/checkout@v4`
+    2. `oven-sh/setup-bun@v2` (official Bun action)
+    3. `bun install --frozen-lockfile`
+    4. `actions/configure-pages@v5` (enables Pages, sets base_url)
+    5. `bun run build` with env vars:
+       - Six `NEXT_PUBLIC_FIREBASE_*` secrets (API_KEY, AUTH_DOMAIN, PROJECT_ID, STORAGE_BUCKET, MESSAGING_SENDER_ID, APP_ID) read from `secrets.*`.
+       - `NEXT_PUBLIC_BASE_PATH` read from **`vars.BASE_PATH`** (repo VARIABLE — not a secret — so it can be empty). If unset, GitHub substitutes `''`, which gives root-relative asset paths → fine for user/org root sites or custom domains. For a project site at `https://<user>.github.io/<repo>/`, the user sets the `BASE_PATH` repo variable to `/<repo>`.
+    6. `actions/upload-pages-artifact@v3` with `path: out`.
+  - `deploy` job (`needs: build`, `environment: github-pages`, `url: ${{ steps.deployment.outputs.page_url }}`):
+    - `actions/deploy-pages@v4`.
+  - Header comment documents every secret/variable name + the BASE_PATH semantics.
+  - Validated YAML with `python3 -c "import yaml; yaml.safe_load(...)"` → parses cleanly, jobs = ['build','deploy'].
+- Created `DEPLOY.md` (English, four parts):
+  - **Part A — Firebase setup**: (1) create project, (2) add Web app + the 6-value `firebaseConfig → NEXT_PUBLIC_FIREBASE_*` mapping table, (3) enable Email/Password (no verification needed — synthetic `@portfolio.local` emails), (4) create Firestore in production mode + deploy rules via `firebase deploy --only firestore:rules` OR paste into the console, (5) bootstrap the admin: generate `serviceAccount.json` (Project settings → Service accounts → Generate new private key), then `GOOGLE_APPLICATION_CREDENTIAL=./serviceAccount.json bun run bootstrap` → creates `kres`/`190565` with `isAdmin:true` + seeds `portfolio/content`. Stresses DO NOT commit `serviceAccount.json`.
+  - **Part B — GitHub repo + Pages**: (1) push to GitHub, (2) Settings → Pages → Source = "GitHub Actions", (3) add the six `NEXT_PUBLIC_FIREBASE_*` repository SECRETS (with the public-by-design caveat), (4) optional `BASE_PATH` repo VARIABLE = `/<repo>` for project sites (or unset/empty for root/custom domain — explained via the `${{ vars.BASE_PATH }}` form), (5) push to `main` → workflow builds & deploys to `https://<user>.github.io/<repo>/`.
+  - **Part C — Local dev**: `cp .env.example .env.local` + fill real values, OR use the demo values + `NEXT_PUBLIC_USE_FIREBASE_EMULATOR=true` and run `bun run emulators` (auth :9099, firestore :8080) + bootstrap with the emulator env vars + `bun run dev`. Includes the sandbox caveat (use the Preview Panel, not `http://localhost:3000`).
+  - **Part D — Notes / caveats**: Firebase config is PUBLIC by design (security from rules + Auth, not hiding config); Spark free tier is enough; portfolio content is in Firestore → admin edits propagate to all visitors in real time via `onSnapshot` with a localStorage cache for instant first paint; admin password reset via re-running `bun run bootstrap` (resets to `190565`) or in-app Settings → Change password; the `.gitignore` list (`.env.local`, `serviceAccount.json`, `.next/`, `out/`, `firebase-debug.log`, `firestore-debug.log`, `ui-debug.log`, `*.local`); custom-domain HTTPS note (clear `BASE_PATH`).
+- Updated `.gitignore` (additive — no existing entries removed). The file already covered `.env.local` (via `.env*`), `/.next/`, `/out/`, and `*-debug.log` (via `*.log`). Added a new `# Firebase + deployment` section with explicit entries for `serviceAccount.json`, `firebase-debug.log`, `firestore-debug.log`, `ui-debug.log`, and `*.local` so the deployment guide's `.gitignore` reference list matches the actual file 1:1.
+- Verified: `python3` YAML parse OK; `bun run lint` clean (exit 0, no errors — expected, since no `src/` files were touched). The dev server log was not consulted because no source changed.
+
+Stage Summary — what downstream agents / the owner need to know:
+- Deployment is one-push: configure the six Firebase secrets (+ optional `BASE_PATH` variable) once, then every push to `main` builds and ships the static export to GitHub Pages automatically.
+- The `BASE_PATH` design choice: it is read from **`vars.BASE_PATH`** (a repository VARIABLE, not a secret) so it can legitimately be empty. Unset → empty string → root-relative asset paths (works for `<user>.github.io` root repos or custom domains). Set to `/<repo>` for project pages. This matches the task spec's "If `BASE_PATH` repo variable is unset, it's empty string → fine for root/custom domain."
+- The workflow uses current/idiomatic action versions: `checkout@v4`, `setup-bun@v2`, `configure-pages@v5`, `upload-pages-artifact@v3`, `deploy-pages@v4`.
+- `serviceAccount.json` is gitignored — but the owner must ALSO revoke old keys from the Firebase console (Project settings → Service accounts) after rotating them; `.gitignore` only prevents committing, it doesn't revoke credentials.
+- Files created: `.github/workflows/deploy.yml`, `DEPLOY.md`. File edited: `.gitignore` (additive). NO files in `src/`, `scripts/`, `next.config.ts`, `package.json`, `firestore.rules`, `firebase.json`, or `.env*` were touched.
+
+---
+Task ID: 13-21 (Firebase refactor summary)
+Agent: orchestrator (main)
+Task: Migrate the app from server-side Next.js (API routes + Prisma/SQLite + JWT-cookie) to a static-export frontend for GitHub Pages backed by Firebase (Auth + Firestore).
+
+Work Log:
+- Installed `firebase` (client), `firebase-admin`, `firebase-tools` (emulators). Removed `prisma`, `@prisma/client`, `bcryptjs`, `jose`, `@types/bcryptjs`, `next-auth`.
+- Created `src/lib/portfolio-defaults.ts` (shared types + defaultContent, used by both the store and the bootstrap script) and `src/lib/firebase.ts` (client init from NEXT_PUBLIC_FIREBASE_* env, optional emulator connection, usernameToEmail mapping).
+- Rewrote `src/contexts/auth-context.tsx` to use Firebase Auth (onAuthStateChanged for session persistence, createUserWithEmailAndPassword for register, signInWithEmailAndPassword for login, reauthenticateWithCredential + updatePassword for changePassword, signOut for logout). Same public API (`user`, `loading`, `login`, `register`, `changePassword`, `logout`, `refresh`) and same error codes as before → no UI changes needed. Username → `${username}@portfolio.local` email. Firestore `users/{uid}` stores `{ username, isAdmin, createdAt }`; `usernames/{lower}` is the uniqueness guard.
+- Rewrote `src/lib/portfolio-store.ts` to sync with Firestore `portfolio/content` via onSnapshot (real-time for all viewers) + a localStorage cache for instant first paint. Preserved the exact store API used by WindowContents. Admin edits write to Firestore (rules enforce admin-only writes).
+- Updated `src/app/page.tsx` to call `initPortfolioSync()` once.
+- Deleted server-only files: `src/app/api/**`, `src/lib/auth.ts`, `src/lib/db.ts`, `prisma/`, `db/`, `render.yaml`.
+- Updated `next.config.ts`: `output: 'export'`, `basePath`/`assetPrefix` from `NEXT_PUBLIC_BASE_PATH` (empty in dev), `images.unoptimized`, `trailingSlash`. Added `public/.nojekyll`.
+- Updated `package.json` scripts: removed `db:*`/`start`/old `build`; added `emulators` (firebase emulators:start) and `bootstrap` (bun scripts/bootstrap-admin.ts).
+- Created `firebase.json` (emulators: auth 9099, firestore 8080), `firestore.rules` (users self-create with isAdmin=false, admin-only mutation; usernames uniqueness guard; portfolio public-read/admin-write), `firestore.indexes.json` (empty), `scripts/bootstrap-admin.ts` (creates admin kres/190565 with isAdmin:true + seeds default content; supports both real service-account and emulator modes), `.env.example`.
+- Subagent (Task 20) created `.github/workflows/deploy.yml` (bun build → upload-pages-artifact → deploy-pages; Firebase config from repo secrets, BASE_PATH from repo variable) and `DEPLOY.md` (Firebase setup + GitHub Pages + local dev + caveats). Updated `.gitignore`.
+
+Self-verification via Firebase EMULATORS + Agent Browser (all passed, no console errors):
+- Started emulators (auth 9099, firestore 8080) and ran `bun run bootstrap` → admin kres/190565 created, isAdmin:true profile written, default portfolio content seeded.
+- Boot (20 processes) → language → login kres/190565 → desktop with "kres ADMIN" badge. (Firebase Auth login works.)
+- Opened Settings → EDIT CONTENT section visible (admin) with About textarea pre-filled FROM Firestore (seeded default). Edited About → verified the change was WRITTEN to Firestore (curl to the emulator REST API showed the new aboutBody).
+- Reload → still logged in (Firebase Auth session persisted via IndexedDB) AND edited content still showing from Firestore. Confirms cross-reload persistence of BOTH session and content.
+- Change password 190565 → testpass123 (success toast) → logout → login with testpass123 → success → change back to 190565. (Firebase Auth reauthenticate + updatePassword works.)
+- Register new user "tester" → desktop with "tester USER" badge. (Firebase Auth createUser + Firestore profile + usernames guard works.)
+- Non-admin "tester" opens Settings → sees "Admin only" note (editor hidden, content writes would be blocked by rules anyway).
+- Re-register "tester" → "! username already taken" (uniqueness enforced).
+- `next build` static export → `out/index.html` + `out/.nojekyll` + `out/_next/` generated, all routes marked ○ (Static). Ready for GitHub Pages.
+- `bun run lint` → clean (0 errors).
+
+Stage Summary:
+- The app is now a pure static frontend (Next.js `output: 'export'`) + Firebase backend. No Node server required → deploys to GitHub Pages free tier.
+- Auth: Firebase Auth (email/password with synthetic `@portfolio.local` emails), session persists across reloads. Admin kres/190565 created via `bun run bootstrap`.
+- Data: Firestore (`users`, `usernames`, `portfolio/content`). Portfolio content is real-time synced (onSnapshot) with a localStorage cache; admin edits are visible to all visitors instantly.
+- Security: `firestore.rules` enforce public read for portfolio + self-create user profiles (isAdmin forced false) + admin-only writes/mutations. Firebase config values are public by design.
+- Deploy: push to GitHub → `.github/workflows/deploy.yml` builds the static export (Firebase config from repo secrets, BASE_PATH from repo variable) and deploys to GitHub Pages. Full setup steps in `DEPLOY.md`.
+- Local dev/testing: `bun run emulators` + `bun run bootstrap` + `bun run dev` (with NEXT_PUBLIC_USE_FIREBASE_EMULATOR=true in .env).
+- Files of note: `src/lib/firebase.ts`, `src/lib/portfolio-defaults.ts`, `src/lib/portfolio-store.ts`, `src/contexts/auth-context.tsx`, `src/app/page.tsx`, `next.config.ts`, `package.json`, `firebase.json`, `firestore.rules`, `firestore.indexes.json`, `scripts/bootstrap-admin.ts`, `.github/workflows/deploy.yml`, `DEPLOY.md`, `.env.example`, `public/.nojekyll`.

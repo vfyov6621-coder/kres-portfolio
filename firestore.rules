@@ -1,0 +1,57 @@
+rules_version = '2';
+
+// Firestore security rules for the Kres portfolio.
+//
+// Data model:
+//   users/{uid}           -> { username, isAdmin, createdAt }   (per-user profile)
+//   usernames/{name}      -> { uid, createdAt }                 (unique username guard;
+//                            the doc id IS the lowercased username, so creating a
+//                            duplicate fails because the doc already exists)
+//   portfolio/{content}   -> { aboutBody, projects, skills, contacts, updatedAt }
+//
+// Auth model:
+//   Firebase Auth email/password. email = "<username>@portfolio.local".
+//   isAdmin is a boolean on the user's profile doc, set ONLY at bootstrap.
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    // True when the signed-in user's profile has isAdmin == true.
+    function isAdmin() {
+      return isSignedIn()
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
+    }
+
+    // ---- User profiles ----
+    match /users/{uid} {
+      allow read: if isSignedIn() && (request.auth.uid == uid || isAdmin());
+      allow create: if isSignedIn()
+        && request.auth.uid == uid
+        && request.resource.data.username is string
+        && request.resource.data.username.size() >= 3
+        && request.resource.data.username.size() <= 20
+        && request.resource.data.isAdmin == false;
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    // ---- Username uniqueness map ----
+    match /usernames/{name} {
+      allow read: if true;
+      allow create: if isSignedIn()
+        && request.resource.data.uid == request.auth.uid;
+      allow delete: if isAdmin();
+    }
+
+    // ---- Portfolio content ----
+    match /portfolio/{doc} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+  }
+}
