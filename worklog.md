@@ -140,3 +140,30 @@ Stage Summary:
 - The app is fully functional end-to-end. Admin account kres/190565 always available (self-healing via ensureAdmin). Registration open with unique usernames. Password change works. EN/RU i18n throughout. Terminal style is distinct from the Win98/MacOS desktop. Lint clean.
 - Deployment: `render.yaml` ready. CAVEAT documented in render.yaml: Render free tier has an ephemeral filesystem, so registered users and password changes are lost on restart/redeploy (admin always survives). render.yaml includes upgrade notes for Turso/libSQL if persistence is later needed.
 - Files of note: `src/app/page.tsx`, `src/app/layout.tsx`, `src/lib/auth.ts`, `src/lib/i18n.ts`, `src/contexts/{auth,language}-context.tsx`, `src/app/api/auth/{session,login,register,logout,change-password}/route.ts`, `src/components/terminal/TerminalAuth.tsx`, `src/components/portfolio/*`, `render.yaml`.
+
+---
+Task ID: 8-12
+Agent: orchestrator (main)
+Task: Add an in-site content editor (admin-only) in the Settings window, expand the terminal boot sequence to 20 processes, and persist the edited portfolio content on the client (localStorage).
+
+Work Log:
+- i18n (`src/lib/i18n.ts`): added 13 new `term.boot.*` keys in BOTH en/ru (probeMemory, detectCpu, initInterrupts, registerDevices, buildSysTree, syncRtc, loadFontCache, validateSignatures, spawnShell, loadTheme, calibrateInput, armWatchdog, handshakeAuth) → 20 boot processes total. Added `desk.editContent`, `desk.editAbout`, `desk.editProjects`, `desk.editSkills`, `desk.editContacts`, `desk.projectTitle`, `desk.projectDesc`, `desk.projectLink`, `desk.contactLabel`, `desk.contactValue`, `desk.addProject`, `desk.removeProject`, `desk.addContact`, `desk.removeContact`, `desk.resetDefaults`, `desk.contentSavedAuto`, `desk.contentSaved`, `desk.resetConfirm`, `desk.adminOnly`, `desk.noProjects`, `desk.noContacts` (en+ru).
+- Created `src/lib/portfolio-store.ts`: Zustand store with `persist` middleware (localStorage key `kres_portfolio_content`, version 1). State = `{ aboutBody, projects: ProjectItem[], skills: string[], contacts: ContactItem[] }` with default values sourced from `translations.en`. Actions: setAboutBody, setProject, addProject, removeProject, setSkills, setContact, addContact, removeContact, resetAll.
+- `src/components/terminal/TerminalAuth.tsx`: rewrote BOOT_STEPS to 20 loading steps (5 progress bars: initKernel, loadDrivers, validateSignatures, modules, handshakeAuth; + 15 text [OK] lines) plus the osName/copyright/blank/selectLanguage/languageHint meta lines. Verified via `agent-browser eval`: exactly 20 `[OK]` lines render.
+- `src/components/portfolio/WindowContents.tsx`: rewrote. About/Projects/Skills/Contact now read their content from `usePortfolioStore` (with live re-render on edit). Settings window keeps the change-password form + language toggle, and now ALSO renders a `<ContentEditor>` section **only when `user.isAdmin` is true** (non-admins see an "Admin only" note). The editor has: About textarea (auto-saves), Projects list (title/description/link per item + Add/Remove), Skills textarea (one per line), Contacts list (label/value + Add/Remove), and a "Reset to defaults" button (window.confirm → resetAll). Add/Remove and Reset surface a toast (`desk.contentSaved`); text edits save silently with an "auto-saved" hint. Project links render as clickable anchors in the Projects window; contact values starting with http(s) render as links.
+
+Self-verification via Agent Browser (all passed, no console/server errors):
+- Boot: 20 processes confirmed (`OK lines: 20`).
+- Login as admin kres/190565 → desktop.
+- Settings window: "EDIT CONTENT" section visible with subsections ABOUT TEXT / PROJECTS / SKILLS (ONE PER LINE) / CONTACTS + Reset button. (Non-admin would see "Admin only" instead — verified by code path.)
+- Edited About text → immediately reflected in the About window AND persisted to `localStorage.kres_portfolio_content` (aboutBody updated).
+- Added a 4th project (title/desc/link) → projects.length went 3→4 in localStorage; the new project "My New Project" with its link appeared in the Projects window.
+- **Reload (without closing browser)**: session cookie kept the user logged in (still on desktop, not terminal) AND localStorage kept the edited content. This confirms both session persistence (httpOnly cookie, 7d) and client-side content persistence (localStorage).
+- Reset to defaults → confirm dialog → content reverted to 3 projects + default aboutBody.
+- Lint: 0 errors. Dev log: clean.
+
+Stage Summary:
+- In-site content editor is live (admin-only, in Settings). Edits auto-save to localStorage (`kres_portfolio_content`) and survive reloads. Covers About / Projects (CRUD) / Skills / Contacts (CRUD) + reset.
+- Terminal boot now shows 20 processes (5 with progress bars).
+- Session persistence confirmed: httpOnly JWT cookie (7d) keeps the user logged in across reloads; edited content persists in localStorage.
+- Files changed: `src/lib/i18n.ts`, `src/lib/portfolio-store.ts` (new), `src/components/terminal/TerminalAuth.tsx`, `src/components/portfolio/WindowContents.tsx`.
