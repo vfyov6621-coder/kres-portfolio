@@ -1,0 +1,182 @@
+/* Terminal auth screen — strict black-and-white, monospace CRT aesthetic. */
+
+.term-root {
+  font-family: var(--font-geist-mono), ui-monospace, 'SF Mono', Menlo, Monaco,
+    Consolas, 'Liberation Mono', 'Courier New', monospace;
+  font-size: 13px;
+  line-height: 1.55;
+  letter-spacing: 0.01em;
+  -webkit-font-smoothing: antialiased;
+  text-shadow: 0 0 6px rgba(229, 229, 229, 0.16);
+}
+
+@media (min-width: 640px) {
+  .term-root {
+    font-size: 14px;
+  }
+}
+
+.term-body {
+  color: #d4d4d4;
+}
+
+/* Minimal terminal-style scrollbar */
+.term-body {
+  scrollbar-width: thin;
+  scrollbar-color: #2a2a2a #000;
+}
+.term-body::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+.term-body::-webkit-scrollbar-track {
+  background: #000;
+}
+.term-body::-webkit-scrollbar-thumb {
+  background: #2a2a2a;
+}
+.term-body::-webkit-scrollbar-thumb:hover {
+  background: #3a3a3a;
+}
+
+.term-line {
+  white-space: pre-wrap;
+  word-break: break-word;
+  min-height: 1.55em;
+}
+
+.term-section {
+  margin-top: 0.4em;
+}
+
+.term-prompt {
+  color: #e5e5e5;
+}
+
+.term-value {
+  color: #e5e5e5;
+}
+
+.term-dim {
+  color: #6b7280;
+}
+
+.term-error {
+  color: #ff6b6b;
+  text-shadow: 0 0 6px rgba(255, 107, 107, 0.35);
+}
+
+.term-success {
+  color: #7ee787;
+  text-shadow: 0 0 6px rgba(126, 231, 135, 0.35);
+}
+
+/* Inline terminal-style input — no border, transparent, white caret. */
+.term-input {
+  background: transparent;
+  border: 0;
+  outline: 0;
+  color: #e5e5e5;
+  caret-color: #e5e5e5;
+  font: inherit;
+  letter-spacing: inherit;
+  padding: 0;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.term-input::selection {
+  background: #e5e5e5;
+  color: #000;
+}
+
+/* Bordered terminal button — inverts on hover/active. */
+.term-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #e5e5e5;
+  color: #e5e5e5;
+  background: transparent;
+  font-family: inherit;
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: pointer;
+  padding: 6px 14px;
+  transition: background-color 80ms linear, color 80ms linear;
+}
+.term-btn:hover,
+.term-btn-active,
+.term-btn:focus-visible {
+  background: #e5e5e5;
+  color: #000;
+  outline: 0;
+}
+
+/* Full-width clickable menu line. */
+.term-link {
+  background: transparent;
+  border: 0;
+  color: #d4d4d4;
+  font-family: inherit;
+  font-size: inherit;
+  cursor: pointer;
+  padding: 2px 4px;
+  margin-left: -4px;
+  transition: background-color 80ms linear, color 80ms linear;
+}
+.term-link:hover,
+.term-link-active,
+.term-link:focus-visible {
+  background: #e5e5e5;
+  color: #000;
+  outline: 0;
+}
+.term-link:hover .term-dim,
+.term-link-active .term-dim,
+.term-link:focus-visible .term-dim {
+  color: #000;
+}
+
+/* Blinking block cursor shown at the active prompt. */
+.term-cursor {
+  display: inline-block;
+  width: 0.6em;
+  height: 1em;
+  vertical-align: text-bottom;
+  background: #e5e5e5;
+  box-shadow: 0 0 6px rgba(229, 229, 229, 0.45);
+  animation: term-blink 1.05s steps(2, end) infinite;
+  margin-left: 2px;
+}
+
+@keyframes term-blink {
+  0%,
+  50% {
+    opacity: 1;
+  }
+  51%,
+  100% {
+    opacity: 0;
+  }
+}
+
+/* Faint CRT scanline overlay. */
+.crt-scanlines {
+  background-image: repeating-linear-gradient(
+    0deg,
+    rgba(0, 0, 0, 0) 0px,
+    rgba(0, 0, 0, 0) 2px,
+    rgba(0, 0, 0, 0.2) 3px,
+    rgba(0, 0, 0, 0.2) 4px
+  );
+  background-size: 100% 4px;
+  mix-blend-mode: multiply;
+  opacity: 0.7;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .term-cursor {
+    animation: none;
+  }
+}

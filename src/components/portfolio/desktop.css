@@ -1,0 +1,46 @@
+/* Portfolio desktop — Win98/MacOS, strict B&W. */
+
+/* Hide scrollbars on icon column / taskbar window-list */
+.no-scrollbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+/* Win98-style thin beveled scrollbar for window contents */
+.win-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: #808080 #fff;
+}
+.win-scroll::-webkit-scrollbar {
+  width: 14px;
+  height: 14px;
+}
+.win-scroll::-webkit-scrollbar-track {
+  background: #fff;
+  border-left: 1px solid #808080;
+  box-shadow: inset 0 0 0 1px #dfdfdf;
+}
+.win-scroll::-webkit-scrollbar-thumb {
+  background: #c0c0c0;
+  box-shadow:
+    inset -1px -1px 0 0 #000,
+    inset 1px 1px 0 0 #fff,
+    inset -2px -2px 0 0 #808080,
+    inset 2px 2px 0 0 #dfdfdf;
+}
+.win-scroll::-webkit-scrollbar-thumb:hover {
+  background: #d0d0d0;
+}
+.win-scroll::-webkit-scrollbar-corner {
+  background: #fff;
+}
+
+/* Title-bar drag cursor (kept smooth on non-touch) */
+@media (hover: hover) and (pointer: fine) {
+  .win-draggable {
+    cursor: move;
+  }
+}
