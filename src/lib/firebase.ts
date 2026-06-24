@@ -43,7 +43,7 @@ export const db: Firestore = getFirestore(app)
 // Connect to local emulators when enabled (dev/testing only).
 if (USE_EMULATOR) {
   try {
-    connectAuthEmulator(auth, 'http://localhost:9099', false)
+    connectAuthEmulator(auth, 'http://localhost:9099', { disableWarnings: false })
   } catch {
     // already connected (HMR) — ignore
   }

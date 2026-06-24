@@ -43,7 +43,7 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
   // 'en' on the server and during the first client render (avoids hydration
   // mismatch); after hydration useSyncExternalStore switches to the stored /
   // browser-detected language automatically.
-  const lang = useSyncExternalStore(subscribe, readStoredLang, () => 'en')
+  const lang = useSyncExternalStore(subscribe, readStoredLang, (): Lang => 'en')
 
   const setLang = useCallback((next: Lang) => {
     if (typeof window !== 'undefined') {
