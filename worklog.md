@@ -289,3 +289,33 @@ Stage Summary:
 - Does NOT contain: .env, upload/tokens.txt, serviceAccount.json, node_modules, .next, out, scaffold files, debug screenshots.
 - Token was used only for the push via credential helper; not persisted in git config.
 - Next steps for the user (documented in DEPLOY.md): set up a real Firebase project, add the 6 NEXT_PUBLIC_FIREBASE_* secrets to the repo, set BASE_PATH variable to /kres-portfolio, enable GitHub Pages (Source = GitHub Actions), then push to main triggers the deploy workflow.
+
+---
+Task ID: 24
+Agent: orchestrator (main)
+Task: Apply the real Firebase config from upload/lel.txt and wire up GitHub secrets.
+
+Work Log:
+- Parsed the real firebaseConfig from upload/lel.txt (apiKey, authDomain, projectId=kres-portfolio, storageBucket, messagingSenderId, appId, measurementId).
+- Wrote real values to .env (NEXT_PUBLIC_USE_FIREBASE_EMULATOR=false). Note: .env is gitignored; only .env.example is committed.
+- Stopped emulators + restarted dev server with real Firebase config.
+- Set the 6 NEXT_PUBLIC_FIREBASE_* values as GitHub repository SECRETS (encrypted via libsodium, HTTP 201 each) on vfyov6621-coder/kres-portfolio. Set BASE_PATH=/kres-portfolio as a repo VARIABLE (HTTP 201) so the static build uses correct asset paths for the project site.
+- Probed the real Firebase project:
+  - Auth (Identity Toolkit) endpoint is live (responds 400 to empty body → endpoint active).
+  - Firestore database EXISTS (portfolio/content read returned 403, not 404 → database created but default-deny rules still in place).
+- Attempted to register "kres" via the UI against real Firebase: Auth createUser succeeded, but the Firestore profile write (users/{uid}) was blocked by the not-yet-deployed rules → app rolled back the Auth user → UI showed "something went wrong, try again".
+- Could NOT auto-deploy firestore.rules: `firebase login` requires interactive browser auth (no Google account available here), and the GitHub token is not a Google credential so it can't access Firebase Admin APIs.
+
+Stage Summary — STATUS: blocked on 2 manual steps the user must do in the Firebase Console.
+- ✅ Real Firebase config in .env + GitHub secrets + BASE_PATH variable. Push to main will deploy correctly.
+- ⏳ Firestore rules NOT deployed yet → registration/login fail because the profile write is denied.
+- ⏳ Admin account kres NOT created yet (bootstrap needs a service account).
+
+Manual steps for the user (cannot be automated without a Google login):
+1. Deploy Firestore rules:
+   a. Firebase Console → Firestore Database → Rules tab → paste the content of firestore.rules → Publish.
+   (OR run locally: `firebase login` then `firebase deploy --only firestore:rules --project kres-portfolio`)
+2. Create the admin:
+   Option A (no service account): after rules are deployed, register "kres" via the UI, then in Firestore Console set users/{uid}.isAdmin = true.
+   Option B (service account): Firebase Console → Project settings → Service accounts → Generate new private key → save as serviceAccount.json → run `GOOGLE_APPLICATION_CREDENTIAL=./serviceAccount.json bun run bootstrap`.
+After both → login kres/190565 works + portfolio content editable.
