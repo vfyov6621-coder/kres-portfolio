@@ -36,16 +36,25 @@ function emailFor(username: string): string {
 
 async function main() {
   const useEmulator = !!process.env.FIREBASE_AUTH_EMULATOR_HOST
+  const keyPath = process.env.SERVICE_ACCOUNT_KEY || 'serviceAccount.json'
 
   if (getApps().length === 0) {
     if (useEmulator) {
       initializeApp({ projectId: PROJECT_ID })
       console.log('[bootstrap] running against LOCAL EMULATORS')
     } else {
-      initializeApp({
-        projectId: PROJECT_ID,
-        credential: applicationDefault(),
-      })
+      // Prefer an explicit service account key file (SERVICE_ACCOUNT_KEY env or
+      // ./serviceAccount.json), falling back to application default credentials.
+      let credential
+      try {
+        const { cert } = await import('firebase-admin/app')
+        credential = cert(keyPath)
+        console.log(`[bootstrap] using service account key: ${keyPath}`)
+      } catch {
+        credential = applicationDefault()
+        console.log('[bootstrap] using application default credentials')
+      }
+      initializeApp({ projectId: PROJECT_ID, credential })
     }
   }
 

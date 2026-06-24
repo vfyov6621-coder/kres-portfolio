@@ -319,3 +319,25 @@ Manual steps for the user (cannot be automated without a Google login):
    Option A (no service account): after rules are deployed, register "kres" via the UI, then in Firestore Console set users/{uid}.isAdmin = true.
    Option B (service account): Firebase Console → Project settings → Service accounts → Generate new private key → save as serviceAccount.json → run `GOOGLE_APPLICATION_CREDENTIAL=./serviceAccount.json bun run bootstrap`.
 After both → login kres/190565 works + portfolio content editable.
+
+---
+Task ID: 25
+Agent: orchestrator (main)
+Task: Bootstrap admin using the uploaded service account key; deploy rules.
+
+Work Log:
+- Copied upload/kres-portfolio-firebase-adminsdk-fbsvc-64465ecbfe.json → serviceAccount.json (gitignored, confirmed via `git check-ignore`).
+- Updated scripts/bootstrap-admin.ts to load the service account from SERVICE_ACCOUNT_KEY env (default ./serviceAccount.json) via cert(), falling back to applicationDefault().
+- Attempted to deploy firestore.rules via REST API:
+  - Firestore database API returned 403 "Cloud Firestore API has not been used in project before or is disabled" → Firestore API NOT enabled in GCP.
+  - Firebase Rules API: ruleset created (HTTP 200) but release create returned 403 PERMISSION_DENIED (service account lacks firebaserules.releases.create).
+  - Service Usage API (to enable firestore.googleapis.com): 403 PERMISSION_DENIED.
+  - Conclusion: the Firebase Admin SDK service account cannot enable APIs or deploy rules. Must be done by the project owner (user) in the console.
+- Ran `bun run bootstrap`:
+  - Auth.createUser returned 400 "CONFIGURATION_NOT_FOUND" → Email/Password sign-in provider is NOT enabled in Firebase Auth.
+  - Verified via Identity Toolkit admin API: GET /admin/v2/projects/kres-portfolio/config → 404 CONFIGURATION_NOT_FOUND (Auth not initialized).
+
+Stage Summary — BLOCKED. The service account key works (got a valid access token), but the Firebase project is missing required setup that only the owner can do in the console:
+1. Firestore database must be CREATED (Cloud Firestore API is currently disabled) → then rules can be pasted.
+2. Email/Password sign-in must be ENABLED in Authentication.
+Until both are done, login/register/admin-bootstrap all fail.
