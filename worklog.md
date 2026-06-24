@@ -268,3 +268,24 @@ Stage Summary:
 - Emulator data now persists across restarts via `.firebase-data/` (auto import/export).
 - Zip is downloadable from the app at `/download/kres-portfolio.zip` (in `public/download/`).
 - NOTE for deployment: when the user sets up a REAL Firebase project, set `NEXT_PUBLIC_USE_FIREBASE_EMULATOR=false` and fill real `NEXT_PUBLIC_FIREBASE_*` values in `.env` — then emulators are no longer needed.
+
+---
+Task ID: 23
+Agent: orchestrator (main)
+Task: Create a GitHub repository and push the project using the tokens from upload/tokens.txt.
+
+Work Log:
+- Read upload/tokens.txt (two tokens: gitzaya, gitaziya — both resolve to the same account vfyov6621-coder).
+- Verified both tokens via GET /user (both valid for vfyov6621-coder).
+- Cleaned the git index before pushing: untracked .env (demo emulator values), public/download/kres-portfolio.zip (binary), .zscripts/, Caddyfile, examples/, mini-services/, download/, shot-*.png, tool-results/. Added all to .gitignore. Committed the cleanup.
+- SECURITY: confirmed upload/ (containing tokens.txt) was NEVER tracked and is now gitignored. Verified .env and upload/tokens.txt return 404 on the remote.
+- Created public repo "kres-portfolio" via POST /user/repos (public, issues/projects/wiki disabled).
+- Pushed main using a credential helper (token in env var, NOT stored in remote config). Verified `git remote -v` shows the clean URL with no token.
+- Pushed a second cleanup commit removing tool-results/ scaffold artifact.
+
+Stage Summary:
+- Repository live: https://github.com/vfyov6621-coder/kres-portfolio (public, default branch main).
+- Contains: src/ (full app), .github/workflows/deploy.yml, firebase.json, firestore.rules, firestore.indexes.json, scripts/bootstrap-admin.ts, DEPLOY.md, .env.example, package.json, bun.lock, next.config.ts, tsconfig.json, tailwind.config.ts, public/ (.nojekyll, logo.svg, robots.txt).
+- Does NOT contain: .env, upload/tokens.txt, serviceAccount.json, node_modules, .next, out, scaffold files, debug screenshots.
+- Token was used only for the push via credential helper; not persisted in git config.
+- Next steps for the user (documented in DEPLOY.md): set up a real Firebase project, add the 6 NEXT_PUBLIC_FIREBASE_* secrets to the repo, set BASE_PATH variable to /kres-portfolio, enable GitHub Pages (Source = GitHub Actions), then push to main triggers the deploy workflow.
