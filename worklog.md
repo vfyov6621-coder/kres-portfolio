@@ -341,3 +341,31 @@ Stage Summary — BLOCKED. The service account key works (got a valid access tok
 1. Firestore database must be CREATED (Cloud Firestore API is currently disabled) → then rules can be pasted.
 2. Email/Password sign-in must be ENABLED in Authentication.
 Until both are done, login/register/admin-bootstrap all fail.
+
+---
+Task ID: 26
+Agent: orchestrator (main)
+Task: After user enabled Auth + Firestore + pasted rules, bootstrap admin, verify, and deploy to GitHub Pages.
+
+Work Log:
+- Verified Auth enabled (Identity Toolkit config returns signIn.email.enabled=true) and Firestore created (FIRESTORE_NATIVE, eur3).
+- Could NOT deploy firestore.rules via REST API: Firebase Rules API rejects the `rulesetName` field on PATCH (400 "Unknown name") even though GET returns it; POST/create is 403 (service account lacks releases.create). User pasted the rules into the console manually.
+- Verified rules now work: public read of portfolio/content and usernames/kres → HTTP 200.
+- Ran `bun run bootstrap` with the service account key → admin kres/190565 created (uid 5tpf2wiQThUzJ6XeR9xwQ7R3wjk2), users/{uid} profile with isAdmin:true written, usernames/kres map written, portfolio/content seeded with defaults. (Admin SDK bypasses security rules.)
+- Agent Browser end-to-end verification against REAL Firebase:
+  - Boot (20 processes) → EN → Login kres/190565 → "Access granted" → desktop with "kres ADMIN" badge. ✅
+  - About window shows the seeded content from Firestore. ✅
+  - Logout → Register "testuser"/test1234 → "testuser USER" desktop. ✅ (Registration + Firestore profile write + username uniqueness map all work with the deployed rules.)
+- Pushed 3 local commits to origin/main → triggered GitHub Actions workflow #3.
+- Found run #2 had failed: `actions/configure-pages` errored "Get Pages site failed... Not Found" → GitHub Pages was not enabled on the repo.
+- Enabled Pages via API: POST /repos/{repo}/pages with build_type=workflow → created, html_url=https://vfyov6621-coder.github.io/kres-portfolio/.
+- Workflow #3 completed: success.
+- Verified deployed site: GET https://vfyov6621-coder.github.io/kres-portfolio/ → HTTP 200, HTML loads with correct basePath (/kres-portfolio/_next/... assets), title "Kres — Portfolio".
+
+Stage Summary — FULLY DEPLOYED & WORKING:
+- Live site: https://vfyov6621-coder.github.io/kres-portfolio/
+- Repo: https://github.com/vfyov6621-coder/kres-portfolio
+- Backend: Firebase Auth (Email/Password) + Firestore (project kres-portfolio). Rules deployed. Admin kres/190565 bootstrapped with isAdmin:true.
+- Frontend: static Next.js export, auto-deployed on every push to main via GitHub Actions.
+- Local dev also works against real Firebase (.env has NEXT_PUBLIC_USE_FIREBASE_EMULATOR=false).
+- All features verified: terminal boot (20 procs), EN/RU i18n, login, register, uniqueness enforcement, portfolio desktop (Win98+MacOS), content synced from Firestore, change-password.
