@@ -63,3 +63,5 @@ firestore-debug.log
 ui-debug.log
 # Any other *.local config (e.g. .env.local is already covered by .env* above).
 *.local
+# Firebase emulator persisted data (local only)
+.firebase-data/

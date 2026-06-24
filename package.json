@@ -7,7 +7,7 @@
     "build": "next build",
     "export": "next build",
     "lint": "eslint .",
-    "emulators": "firebase emulators:start --project kres-portfolio",
+    "emulators": "firebase emulators:start --project kres-portfolio --import .firebase-data --export-on-exit .firebase-data",
     "bootstrap": "bun scripts/bootstrap-admin.ts"
   },
   "dependencies": {

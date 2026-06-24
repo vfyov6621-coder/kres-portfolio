@@ -243,3 +243,28 @@ Stage Summary:
 - Deploy: push to GitHub → `.github/workflows/deploy.yml` builds the static export (Firebase config from repo secrets, BASE_PATH from repo variable) and deploys to GitHub Pages. Full setup steps in `DEPLOY.md`.
 - Local dev/testing: `bun run emulators` + `bun run bootstrap` + `bun run dev` (with NEXT_PUBLIC_USE_FIREBASE_EMULATOR=true in .env).
 - Files of note: `src/lib/firebase.ts`, `src/lib/portfolio-defaults.ts`, `src/lib/portfolio-store.ts`, `src/contexts/auth-context.tsx`, `src/app/page.tsx`, `next.config.ts`, `package.json`, `firebase.json`, `firestore.rules`, `firestore.indexes.json`, `scripts/bootstrap-admin.ts`, `.github/workflows/deploy.yml`, `DEPLOY.md`, `.env.example`, `public/.nojekyll`.
+
+---
+Task ID: 22
+Agent: orchestrator (main)
+Task: Fix login/register being broken + add emulator data persistence + put zip in download/.
+
+Work Log:
+- Root cause: `.env` had `NEXT_PUBLIC_USE_FIREBASE_EMULATOR=true` but emulators were stopped (killed after earlier testing) → all Firebase Auth/Firestore calls failed silently → couldn't login or register. Emulator data was also in-memory, so the admin was lost on restart.
+- Restarted Firebase emulators. Re-ran `bun run bootstrap` to recreate admin kres/190565 + seed content.
+- Added emulator data persistence: updated `package.json` `emulators` script to `firebase emulators:start --import .firebase-data --export-on-exit .firebase-data` so auth users + firestore docs survive emulator restarts. Added `.firebase-data/` to `.gitignore`.
+- Rebuilt the zip with the latest fixes (persistence script, corrected .gitignore with `!.env.example`) and placed it at `public/download/kres-portfolio.zip` (served by Next.js dev server, downloadable at /download/kres-portfolio.zip).
+- Removed the stray root-level `download/` folder (not served by Next.js) in favor of `public/download/`.
+
+Self-verification (Agent Browser, emulator-backed):
+- Boot → EN → Login kres/190565 → "kres ADMIN" desktop. ✅
+- Logout → Register "newuser"/pass1234 → "newuser USER" desktop. ✅
+- Logout → Login kres/190565 again → success. ✅
+- `curl /download/kres-portfolio.zip` → HTTP 200, 291119 bytes. ✅
+- `bun run lint` → clean.
+
+Stage Summary:
+- Login & register work again (emulators running + admin re-bootstrapped).
+- Emulator data now persists across restarts via `.firebase-data/` (auto import/export).
+- Zip is downloadable from the app at `/download/kres-portfolio.zip` (in `public/download/`).
+- NOTE for deployment: when the user sets up a REAL Firebase project, set `NEXT_PUBLIC_USE_FIREBASE_EMULATOR=false` and fill real `NEXT_PUBLIC_FIREBASE_*` values in `.env` — then emulators are no longer needed.
