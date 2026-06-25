@@ -21,7 +21,7 @@ export async function recordPortfolioView(uid: string, username: string): Promis
     }
 
     // 2. Per-viewer record — create if missing, otherwise increment views + bump lastSeen.
-    const viewerRef = doc(db, 'analytics', 'viewers', uid)
+    const viewerRef = doc(db, 'viewers', uid)
     const vSnap = await getDoc(viewerRef)
     if (!vSnap.exists()) {
       await setDoc(viewerRef, {

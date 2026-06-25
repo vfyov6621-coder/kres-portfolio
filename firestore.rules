@@ -67,8 +67,9 @@ service cloud.firestore {
       allow update: if isSignedIn();
       allow create: if isSignedIn();
     }
-    // Per-viewer record: admin reads all; a user creates/updates only their own.
-    match /analytics/viewers/{uid} {
+    // Per-viewer record (top-level collection): admin reads all; a user
+    // creates/updates only their own document.
+    match /viewers/{uid} {
       allow read: if isAdmin() || (isSignedIn() && request.auth.uid == uid);
       allow create: if isSignedIn() && request.auth.uid == uid
         && request.resource.data.uid == request.auth.uid;

@@ -601,24 +601,39 @@ function AnalyticsContent({ t, user }: { t: (k: string) => string; user: AuthUse
   const [acting, setActing] = useState<string | null>(null)
 
   const load = async () => {
-    try {
-      const { db } = await import('@/lib/firebase')
-      const { doc, getDoc, collection, getDocs, orderBy, query, updateDoc } = await import('firebase/firestore')
+    const { db } = await import('@/lib/firebase')
+    const { doc, getDoc, collection, getDocs } = await import('firebase/firestore')
 
-      // Total views
+    // Total views — independent (best-effort).
+    try {
       const cSnap = await getDoc(doc(db, 'analytics', 'portfolio'))
       setTotalViews(cSnap.exists() ? (cSnap.data().totalViews ?? 0) : 0)
+    } catch {
+      setTotalViews(0)
+    }
 
-      // Viewers (recent first)
-      const vSnap = await getDocs(query(collection(db, 'analytics', 'viewers'), orderBy('lastSeen', 'desc')))
+    // Viewers list — independent. No orderBy (avoids needing a composite
+    // index; we sort client-side instead).
+    try {
+      const vSnap = await getDocs(collection(db, 'viewers'))
       const vRows: ViewerRow[] = []
       vSnap.forEach((d) => {
         const data = d.data() as ViewerRow
         vRows.push({ ...data, uid: d.id })
       })
+      // Sort by lastSeen descending (client-side).
+      vRows.sort((a, b) => {
+        const ta = new Date(tsToIso(a.lastSeen)).getTime() || 0
+        const tb = new Date(tsToIso(b.lastSeen)).getTime() || 0
+        return tb - ta
+      })
       setViewers(vRows)
+    } catch {
+      setViewers([])
+    }
 
-      // Pending users
+    // Pending users — independent.
+    try {
       const uSnap = await getDocs(collection(db, 'users'))
       const pRows: PendingRow[] = []
       uSnap.forEach((d) => {
@@ -628,9 +643,8 @@ function AnalyticsContent({ t, user }: { t: (k: string) => string; user: AuthUse
         }
       })
       setPending(pRows)
-      void updateDoc
     } catch {
-      // permission denied (non-admin) — leave empty
+      setPending([])
     } finally {
       setLoading(false)
     }
