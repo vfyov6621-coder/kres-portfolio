@@ -11,7 +11,7 @@ Task: Set up the full foundation: database schema, auth backend (JWT + bcrypt + 
 Work Log:
 - Installed `jose` (JWT) and `bcryptjs` (password hashing).
 - Replaced Prisma schema with a single `User` model: `id`, `username` (unique), `passwordHash`, `isAdmin`, timestamps. Pushed to SQLite (`bun run db:push`).
-- Created `src/lib/auth.ts`: `hashPassword`, `verifyPassword`, `createSessionToken`, `verifySessionToken`, `ensureAdmin` (idempotent — creates admin `kres` / `190565` if missing), `publicUser`, `SESSION_COOKIE` constant.
+- Created `src/lib/auth.ts`: `hashPassword`, `verifyPassword`, `createSessionToken`, `verifySessionToken`, `ensureAdmin` (idempotent — creates admin `kres` / `[REDACTED]` if missing), `publicUser`, `SESSION_COOKIE` constant.
 - Created API routes (all `runtime = 'nodejs'`, `dynamic = 'force-dynamic'`):
   - `GET  /api/auth/session`        → `{ user } | null` (also calls ensureAdmin)
   - `POST /api/auth/register`       → `{ user }` (validates username `^[a-zA-Z0-9_]{3,20}$`, password 4-100 chars; sets httpOnly cookie)
@@ -33,7 +33,7 @@ Stage Summary — CONTRACTS for downstream UI agents:
   - Task 4-b → `src/components/portfolio/PortfolioDesktop.tsx` (the Win98/MacOS desktop)
 - `src/app/page.tsx` will be wired by the orchestrator afterwards: `loading → blank; !user → <TerminalAuth />; user → <PortfolioDesktop />`.
 - The dev server runs on port 3000. Logs are in `/home/z/my-project/dev.log`.
-- Admin seed: username `kres`, password `190565` (created automatically on first API hit).
+- Admin seed: username `kres`, password `[REDACTED]` (created automatically on first API hit).
 
 Design constraints (from the user):
 - Black-and-white style throughout.
@@ -128,16 +128,16 @@ Self-verification via Agent Browser (all passed, no browser/server errors):
 - Terminal boot sequence types out ~12 aesthetic lines (KRES-OS v2.1.905, copyright, init kernel [OK], load drivers with progress bar, mount fs, net stack, identity vault, modules with progress bar, encrypt) then auto-advances.
 - Language selection: EN/RU buttons + keyboard 1/2. Picking RU flips the entire UI to Russian (verified desktop icons, headings, menu items, badges all localized).
 - Menu → Login form: terminal prompts `username>` / `password>` (masked), Enter advances fields, ESC returns to menu, SUBMIT button works.
-- Admin login (kres / 190565) → desktop loads. Badge shows "kres ADMIN".
+- Admin login (kres / [REDACTED]) → desktop loads. Badge shows "kres ADMIN".
 - Registration: created user "tester" → desktop loads with "tester USER" badge.
 - Unique-login enforcement: re-registering "tester" returns 409 + terminal shows "! username already taken".
 - Portfolio desktop: MacOS top menu bar (brand + File/Edit/View/Help + EN/RU toggle + live clock + user dropdown), Win98 taskbar (START + window buttons + tray clock), desktop icons (About/Projects/Skills/Contact/Settings, double-click to open), windows with Win98 beveled borders + MacOS traffic-light buttons (Close/Minimize/Maximize), draggable title bars, z-index focus management, start menu popup.
-- Change password: 190565 → testpass123 (success toast "Password changed successfully") → back to 190565 (success). Wrong-current and same-password error paths mapped to localized messages.
+- Change password: [REDACTED] → testpass123 (success toast "Password changed successfully") → back to [REDACTED] (success). Wrong-current and same-password error paths mapped to localized messages.
 - Logout (via user dropdown "Log out" / "Выйти") → returns to terminal boot screen; language preference persists in localStorage.
 - Responsive: tested at 390×844 (mobile) — terminal and desktop both render correctly; windows open near-fullscreen with Maximize disabled on narrow screens; 44px touch targets present.
 
 Stage Summary:
-- The app is fully functional end-to-end. Admin account kres/190565 always available (self-healing via ensureAdmin). Registration open with unique usernames. Password change works. EN/RU i18n throughout. Terminal style is distinct from the Win98/MacOS desktop. Lint clean.
+- The app is fully functional end-to-end. Admin account kres/[REDACTED] always available (self-healing via ensureAdmin). Registration open with unique usernames. Password change works. EN/RU i18n throughout. Terminal style is distinct from the Win98/MacOS desktop. Lint clean.
 - Deployment: `render.yaml` ready. CAVEAT documented in render.yaml: Render free tier has an ephemeral filesystem, so registered users and password changes are lost on restart/redeploy (admin always survives). render.yaml includes upgrade notes for Turso/libSQL if persistence is later needed.
 - Files of note: `src/app/page.tsx`, `src/app/layout.tsx`, `src/lib/auth.ts`, `src/lib/i18n.ts`, `src/contexts/{auth,language}-context.tsx`, `src/app/api/auth/{session,login,register,logout,change-password}/route.ts`, `src/components/terminal/TerminalAuth.tsx`, `src/components/portfolio/*`, `render.yaml`.
 
@@ -154,7 +154,7 @@ Work Log:
 
 Self-verification via Agent Browser (all passed, no console/server errors):
 - Boot: 20 processes confirmed (`OK lines: 20`).
-- Login as admin kres/190565 → desktop.
+- Login as admin kres/[REDACTED] → desktop.
 - Settings window: "EDIT CONTENT" section visible with subsections ABOUT TEXT / PROJECTS / SKILLS (ONE PER LINE) / CONTACTS + Reset button. (Non-admin would see "Admin only" instead — verified by code path.)
 - Edited About text → immediately reflected in the About window AND persisted to `localStorage.kres_portfolio_content` (aboutBody updated).
 - Added a 4th project (title/desc/link) → projects.length went 3→4 in localStorage; the new project "My New Project" with its link appeared in the Projects window.
@@ -192,10 +192,10 @@ Work Log:
   - Header comment documents every secret/variable name + the BASE_PATH semantics.
   - Validated YAML with `python3 -c "import yaml; yaml.safe_load(...)"` → parses cleanly, jobs = ['build','deploy'].
 - Created `DEPLOY.md` (English, four parts):
-  - **Part A — Firebase setup**: (1) create project, (2) add Web app + the 6-value `firebaseConfig → NEXT_PUBLIC_FIREBASE_*` mapping table, (3) enable Email/Password (no verification needed — synthetic `@portfolio.local` emails), (4) create Firestore in production mode + deploy rules via `firebase deploy --only firestore:rules` OR paste into the console, (5) bootstrap the admin: generate `serviceAccount.json` (Project settings → Service accounts → Generate new private key), then `GOOGLE_APPLICATION_CREDENTIAL=./serviceAccount.json bun run bootstrap` → creates `kres`/`190565` with `isAdmin:true` + seeds `portfolio/content`. Stresses DO NOT commit `serviceAccount.json`.
+  - **Part A — Firebase setup**: (1) create project, (2) add Web app + the 6-value `firebaseConfig → NEXT_PUBLIC_FIREBASE_*` mapping table, (3) enable Email/Password (no verification needed — synthetic `@portfolio.local` emails), (4) create Firestore in production mode + deploy rules via `firebase deploy --only firestore:rules` OR paste into the console, (5) bootstrap the admin: generate `serviceAccount.json` (Project settings → Service accounts → Generate new private key), then `GOOGLE_APPLICATION_CREDENTIAL=./serviceAccount.json bun run bootstrap` → creates `kres`/`[REDACTED]` with `isAdmin:true` + seeds `portfolio/content`. Stresses DO NOT commit `serviceAccount.json`.
   - **Part B — GitHub repo + Pages**: (1) push to GitHub, (2) Settings → Pages → Source = "GitHub Actions", (3) add the six `NEXT_PUBLIC_FIREBASE_*` repository SECRETS (with the public-by-design caveat), (4) optional `BASE_PATH` repo VARIABLE = `/<repo>` for project sites (or unset/empty for root/custom domain — explained via the `${{ vars.BASE_PATH }}` form), (5) push to `main` → workflow builds & deploys to `https://<user>.github.io/<repo>/`.
   - **Part C — Local dev**: `cp .env.example .env.local` + fill real values, OR use the demo values + `NEXT_PUBLIC_USE_FIREBASE_EMULATOR=true` and run `bun run emulators` (auth :9099, firestore :8080) + bootstrap with the emulator env vars + `bun run dev`. Includes the sandbox caveat (use the Preview Panel, not `http://localhost:3000`).
-  - **Part D — Notes / caveats**: Firebase config is PUBLIC by design (security from rules + Auth, not hiding config); Spark free tier is enough; portfolio content is in Firestore → admin edits propagate to all visitors in real time via `onSnapshot` with a localStorage cache for instant first paint; admin password reset via re-running `bun run bootstrap` (resets to `190565`) or in-app Settings → Change password; the `.gitignore` list (`.env.local`, `serviceAccount.json`, `.next/`, `out/`, `firebase-debug.log`, `firestore-debug.log`, `ui-debug.log`, `*.local`); custom-domain HTTPS note (clear `BASE_PATH`).
+  - **Part D — Notes / caveats**: Firebase config is PUBLIC by design (security from rules + Auth, not hiding config); Spark free tier is enough; portfolio content is in Firestore → admin edits propagate to all visitors in real time via `onSnapshot` with a localStorage cache for instant first paint; admin password reset via re-running `bun run bootstrap` (resets to `[REDACTED]`) or in-app Settings → Change password; the `.gitignore` list (`.env.local`, `serviceAccount.json`, `.next/`, `out/`, `firebase-debug.log`, `firestore-debug.log`, `ui-debug.log`, `*.local`); custom-domain HTTPS note (clear `BASE_PATH`).
 - Updated `.gitignore` (additive — no existing entries removed). The file already covered `.env.local` (via `.env*`), `/.next/`, `/out/`, and `*-debug.log` (via `*.log`). Added a new `# Firebase + deployment` section with explicit entries for `serviceAccount.json`, `firebase-debug.log`, `firestore-debug.log`, `ui-debug.log`, and `*.local` so the deployment guide's `.gitignore` reference list matches the actual file 1:1.
 - Verified: `python3` YAML parse OK; `bun run lint` clean (exit 0, no errors — expected, since no `src/` files were touched). The dev server log was not consulted because no source changed.
 
@@ -220,15 +220,15 @@ Work Log:
 - Deleted server-only files: `src/app/api/**`, `src/lib/auth.ts`, `src/lib/db.ts`, `prisma/`, `db/`, `render.yaml`.
 - Updated `next.config.ts`: `output: 'export'`, `basePath`/`assetPrefix` from `NEXT_PUBLIC_BASE_PATH` (empty in dev), `images.unoptimized`, `trailingSlash`. Added `public/.nojekyll`.
 - Updated `package.json` scripts: removed `db:*`/`start`/old `build`; added `emulators` (firebase emulators:start) and `bootstrap` (bun scripts/bootstrap-admin.ts).
-- Created `firebase.json` (emulators: auth 9099, firestore 8080), `firestore.rules` (users self-create with isAdmin=false, admin-only mutation; usernames uniqueness guard; portfolio public-read/admin-write), `firestore.indexes.json` (empty), `scripts/bootstrap-admin.ts` (creates admin kres/190565 with isAdmin:true + seeds default content; supports both real service-account and emulator modes), `.env.example`.
+- Created `firebase.json` (emulators: auth 9099, firestore 8080), `firestore.rules` (users self-create with isAdmin=false, admin-only mutation; usernames uniqueness guard; portfolio public-read/admin-write), `firestore.indexes.json` (empty), `scripts/bootstrap-admin.ts` (creates admin kres/[REDACTED] with isAdmin:true + seeds default content; supports both real service-account and emulator modes), `.env.example`.
 - Subagent (Task 20) created `.github/workflows/deploy.yml` (bun build → upload-pages-artifact → deploy-pages; Firebase config from repo secrets, BASE_PATH from repo variable) and `DEPLOY.md` (Firebase setup + GitHub Pages + local dev + caveats). Updated `.gitignore`.
 
 Self-verification via Firebase EMULATORS + Agent Browser (all passed, no console errors):
-- Started emulators (auth 9099, firestore 8080) and ran `bun run bootstrap` → admin kres/190565 created, isAdmin:true profile written, default portfolio content seeded.
-- Boot (20 processes) → language → login kres/190565 → desktop with "kres ADMIN" badge. (Firebase Auth login works.)
+- Started emulators (auth 9099, firestore 8080) and ran `bun run bootstrap` → admin kres/[REDACTED] created, isAdmin:true profile written, default portfolio content seeded.
+- Boot (20 processes) → language → login kres/[REDACTED] → desktop with "kres ADMIN" badge. (Firebase Auth login works.)
 - Opened Settings → EDIT CONTENT section visible (admin) with About textarea pre-filled FROM Firestore (seeded default). Edited About → verified the change was WRITTEN to Firestore (curl to the emulator REST API showed the new aboutBody).
 - Reload → still logged in (Firebase Auth session persisted via IndexedDB) AND edited content still showing from Firestore. Confirms cross-reload persistence of BOTH session and content.
-- Change password 190565 → testpass123 (success toast) → logout → login with testpass123 → success → change back to 190565. (Firebase Auth reauthenticate + updatePassword works.)
+- Change password [REDACTED] → testpass123 (success toast) → logout → login with testpass123 → success → change back to [REDACTED]. (Firebase Auth reauthenticate + updatePassword works.)
 - Register new user "tester" → desktop with "tester USER" badge. (Firebase Auth createUser + Firestore profile + usernames guard works.)
 - Non-admin "tester" opens Settings → sees "Admin only" note (editor hidden, content writes would be blocked by rules anyway).
 - Re-register "tester" → "! username already taken" (uniqueness enforced).
@@ -237,7 +237,7 @@ Self-verification via Firebase EMULATORS + Agent Browser (all passed, no console
 
 Stage Summary:
 - The app is now a pure static frontend (Next.js `output: 'export'`) + Firebase backend. No Node server required → deploys to GitHub Pages free tier.
-- Auth: Firebase Auth (email/password with synthetic `@portfolio.local` emails), session persists across reloads. Admin kres/190565 created via `bun run bootstrap`.
+- Auth: Firebase Auth (email/password with synthetic `@portfolio.local` emails), session persists across reloads. Admin kres/[REDACTED] created via `bun run bootstrap`.
 - Data: Firestore (`users`, `usernames`, `portfolio/content`). Portfolio content is real-time synced (onSnapshot) with a localStorage cache; admin edits are visible to all visitors instantly.
 - Security: `firestore.rules` enforce public read for portfolio + self-create user profiles (isAdmin forced false) + admin-only writes/mutations. Firebase config values are public by design.
 - Deploy: push to GitHub → `.github/workflows/deploy.yml` builds the static export (Firebase config from repo secrets, BASE_PATH from repo variable) and deploys to GitHub Pages. Full setup steps in `DEPLOY.md`.
@@ -251,15 +251,15 @@ Task: Fix login/register being broken + add emulator data persistence + put zip 
 
 Work Log:
 - Root cause: `.env` had `NEXT_PUBLIC_USE_FIREBASE_EMULATOR=true` but emulators were stopped (killed after earlier testing) → all Firebase Auth/Firestore calls failed silently → couldn't login or register. Emulator data was also in-memory, so the admin was lost on restart.
-- Restarted Firebase emulators. Re-ran `bun run bootstrap` to recreate admin kres/190565 + seed content.
+- Restarted Firebase emulators. Re-ran `bun run bootstrap` to recreate admin kres/[REDACTED] + seed content.
 - Added emulator data persistence: updated `package.json` `emulators` script to `firebase emulators:start --import .firebase-data --export-on-exit .firebase-data` so auth users + firestore docs survive emulator restarts. Added `.firebase-data/` to `.gitignore`.
 - Rebuilt the zip with the latest fixes (persistence script, corrected .gitignore with `!.env.example`) and placed it at `public/download/kres-portfolio.zip` (served by Next.js dev server, downloadable at /download/kres-portfolio.zip).
 - Removed the stray root-level `download/` folder (not served by Next.js) in favor of `public/download/`.
 
 Self-verification (Agent Browser, emulator-backed):
-- Boot → EN → Login kres/190565 → "kres ADMIN" desktop. ✅
+- Boot → EN → Login kres/[REDACTED] → "kres ADMIN" desktop. ✅
 - Logout → Register "newuser"/pass1234 → "newuser USER" desktop. ✅
-- Logout → Login kres/190565 again → success. ✅
+- Logout → Login kres/[REDACTED] again → success. ✅
 - `curl /download/kres-portfolio.zip` → HTTP 200, 291119 bytes. ✅
 - `bun run lint` → clean.
 
@@ -318,7 +318,7 @@ Manual steps for the user (cannot be automated without a Google login):
 2. Create the admin:
    Option A (no service account): after rules are deployed, register "kres" via the UI, then in Firestore Console set users/{uid}.isAdmin = true.
    Option B (service account): Firebase Console → Project settings → Service accounts → Generate new private key → save as serviceAccount.json → run `GOOGLE_APPLICATION_CREDENTIAL=./serviceAccount.json bun run bootstrap`.
-After both → login kres/190565 works + portfolio content editable.
+After both → login kres/[REDACTED] works + portfolio content editable.
 
 ---
 Task ID: 25
@@ -351,9 +351,9 @@ Work Log:
 - Verified Auth enabled (Identity Toolkit config returns signIn.email.enabled=true) and Firestore created (FIRESTORE_NATIVE, eur3).
 - Could NOT deploy firestore.rules via REST API: Firebase Rules API rejects the `rulesetName` field on PATCH (400 "Unknown name") even though GET returns it; POST/create is 403 (service account lacks releases.create). User pasted the rules into the console manually.
 - Verified rules now work: public read of portfolio/content and usernames/kres → HTTP 200.
-- Ran `bun run bootstrap` with the service account key → admin kres/190565 created (uid 5tpf2wiQThUzJ6XeR9xwQ7R3wjk2), users/{uid} profile with isAdmin:true written, usernames/kres map written, portfolio/content seeded with defaults. (Admin SDK bypasses security rules.)
+- Ran `bun run bootstrap` with the service account key → admin kres/[REDACTED] created (uid 5tpf2wiQThUzJ6XeR9xwQ7R3wjk2), users/{uid} profile with isAdmin:true written, usernames/kres map written, portfolio/content seeded with defaults. (Admin SDK bypasses security rules.)
 - Agent Browser end-to-end verification against REAL Firebase:
-  - Boot (20 processes) → EN → Login kres/190565 → "Access granted" → desktop with "kres ADMIN" badge. ✅
+  - Boot (20 processes) → EN → Login kres/[REDACTED] → "Access granted" → desktop with "kres ADMIN" badge. ✅
   - About window shows the seeded content from Firestore. ✅
   - Logout → Register "testuser"/test1234 → "testuser USER" desktop. ✅ (Registration + Firestore profile write + username uniqueness map all work with the deployed rules.)
 - Pushed 3 local commits to origin/main → triggered GitHub Actions workflow #3.
@@ -365,7 +365,7 @@ Work Log:
 Stage Summary — FULLY DEPLOYED & WORKING:
 - Live site: https://vfyov6621-coder.github.io/kres-portfolio/
 - Repo: https://github.com/vfyov6621-coder/kres-portfolio
-- Backend: Firebase Auth (Email/Password) + Firestore (project kres-portfolio). Rules deployed. Admin kres/190565 bootstrapped with isAdmin:true.
+- Backend: Firebase Auth (Email/Password) + Firestore (project kres-portfolio). Rules deployed. Admin kres/[REDACTED] bootstrapped with isAdmin:true.
 - Frontend: static Next.js export, auto-deployed on every push to main via GitHub Actions.
 - Local dev also works against real Firebase (.env has NEXT_PUBLIC_USE_FIREBASE_EMULATOR=false).
 - All features verified: terminal boot (20 procs), EN/RU i18n, login, register, uniqueness enforcement, portfolio desktop (Win98+MacOS), content synced from Firestore, change-password.
@@ -401,7 +401,7 @@ RULES DEPLOY BLOCKER:
 
 Self-verification (Agent Browser, local dev against real Firebase):
 - Welcome splash: shows KRESOS logo + progress bar 0→100% over ~10s, then transitions to terminal. ✓ (sessionStorage prevents repeat in same session)
-- Login kres/190565 → desktop with "kres ADMIN" badge (status:approved). ✓
+- Login kres/[REDACTED] → desktop with "kres ADMIN" badge (status:approved). ✓
 - Register viewer1/view1234 → "PENDING" + "Application under review" page. ✓
 - viewer1 profile in Firestore: status=pending (verified via admin SDK). ✓
 - Analytics window (as kres): opens, shows TOTAL VIEWS + UNIQUE VIEWERS KPI cards. "No pending applications" shown because old rules block `list` (will work after rules update).
@@ -425,7 +425,7 @@ Work Log:
 - Committed + pushed (c432665) → GitHub Actions triggered.
 
 Self-verification (Agent Browser, local dev against real Firebase, with OLD production rules):
-- Welcome splash (10s) → terminal → login kres/190565 → desktop. ✓
+- Welcome splash (10s) → terminal → login kres/[REDACTED] → desktop. ✓
 - Analytics window: TOTAL VIEWS counter works (incremented on each kres visit). ✓
 - Pending approvals: viewer1 + another applicant shown with Approve/Reject buttons. ✓
 - Clicked Approve on viewer1 → toast "Approved" → viewer1 removed from pending list. ✓
@@ -458,7 +458,7 @@ Work Log:
 
 Self-verification (Agent Browser, local dev):
 - Welcome splash: shows new logo (naturalW=1024), tagline "PERSONAL PORTFOLIO WORKSPACE", progress bar 0→100% over ~15s, then transitions to terminal. ✓
-- Login kres/190565 → desktop with NO top menu bar (only taskbar at bottom with START). ✓
+- Login kres/[REDACTED] → desktop with NO top menu bar (only taskbar at bottom with START). ✓
 - Analytics window: TOTAL VIEWS counter works, kres appears in Recent viewers list with view count. ✓ (rules deployed, viewers/{uid} top-level collection works)
 - Lint: clean. No console errors.
 - Production: logo.png + favicon both load with correct basePath.

@@ -92,7 +92,7 @@ admin operations to users whose profile has `isAdmin: true`.
 
 ### 5. Bootstrap the admin account
 
-The portfolio needs one admin (`kres` / `190565`) to edit content. Bootstrap
+The portfolio needs one admin (`kres` / `[REDACTED]`) to edit content. Bootstrap
 creates that user, sets `isAdmin: true` on their profile, and seeds the
 default portfolio document.
 
@@ -118,7 +118,7 @@ default portfolio document.
    on a machine you trust. Either way, it is gitignored.
 
 You can re-run `bun run bootstrap` any time to **reset the admin password
-back to `190565`** and re-seed the default content. To change it to something
+back to `[REDACTED]`** and re-seed the default content. To change it to something
 else, log in as `kres` and use **Settings → Change password** in the app.
 
 ---
@@ -237,7 +237,7 @@ bun run dev
 ```
 
 > The first `bun run bootstrap` against a fresh emulator creates `kres` /
-> `190565` and seeds the default portfolio content. Re-run it any time you
+> `[REDACTED]` and seeds the default portfolio content. Re-run it any time you
 > wipe the emulator data (`firebase emulators:exec --project kres-portfolio
 > 'echo reset'` or simply restart the emulators with `--import`/`--export`).
 
@@ -270,7 +270,7 @@ bun run dev
   Firestore snapshot resolves.
 
 - **Resetting the admin password.** Two ways:
-  1. Re-run `bun run bootstrap` — it resets the `kres` password to `190565`
+  1. Re-run `bun run bootstrap` — it resets the `kres` password to `[REDACTED]`
      (and re-seeds default content if the doc is missing — it does **not**
      overwrite existing content otherwise).
   2. Use the in-app **Settings → Change password** while logged in as

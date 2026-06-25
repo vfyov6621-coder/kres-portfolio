@@ -1,24 +1,25 @@
 /**
  * One-time bootstrap script.
  *
- * Creates (or repairs) the admin account `kres` / `190565` and seeds the
- * default portfolio content document.
+ * Creates (or repairs) the admin account and seeds the default portfolio
+ * content document. The admin password is read from the ADMIN_PASSWORD env
+ * var — it is NEVER hardcoded in this file.
  *
  * USAGE (real Firebase project):
  *   1. In the Firebase Console, add a service account:
  *        Project settings → Service accounts → Generate new private key →
  *        save as `serviceAccount.json` in the project root (DO NOT commit).
  *   2. Run:
+ *        ADMIN_PASSWORD='your-secret' \
  *        GOOGLE_APPLICATION_CREDENTIAL=./serviceAccount.json bun run bootstrap
  *
  * USAGE (local emulators):
  *   1. Start emulators in another terminal:  bun run emulators
  *   2. Run:
+ *        ADMIN_PASSWORD='your-secret' \
  *        FIREBASE_AUTH_EMULATOR_HOST=localhost:9099 \
  *        FIRESTORE_EMULATOR_HOST=localhost:8080 \
  *        bun run bootstrap
- *   (No service account needed — the emulator accepts admin calls with a
- *    projectId only.)
  */
 
 import { initializeApp, applicationDefault, getApps } from 'firebase-admin/app'
@@ -28,7 +29,12 @@ import { defaultContent } from '../src/lib/portfolio-defaults'
 
 const PROJECT_ID = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || 'kres-portfolio'
 const ADMIN_USERNAME = 'kres'
-const ADMIN_PASSWORD = '190565'
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD
+
+if (!ADMIN_PASSWORD) {
+  console.error('[bootstrap] ERROR: set ADMIN_PASSWORD env var (do NOT hardcode it in the repo).')
+  process.exit(1)
+}
 
 function emailFor(username: string): string {
   return `${username.toLowerCase()}@portfolio.local`

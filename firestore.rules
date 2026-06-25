@@ -3,17 +3,13 @@ rules_version = '2';
 // Firestore security rules for the Kres portfolio.
 //
 // Data model:
-//   users/{uid}           -> { username, isAdmin, status, createdAt }
-//                            status: 'pending' | 'approved' | 'rejected'
-//   usernames/{name}      -> { uid, createdAt }   (unique username guard)
-//   portfolio/{content}   -> { aboutBody, projects, skills, contacts, updatedAt }
-//   analytics/portfolio   -> { totalViews, updatedAt }
-//   analytics/viewers/{uid} -> { username, views, firstSeen, lastSeen }
-//
-// Auth model:
-//   Firebase Auth email/password. email = "<username>@portfolio.local".
-//   New users register with status='pending'; admin approves/rejects.
-//   isAdmin is a boolean set ONLY at bootstrap.
+//   users/{uid}                       -> { username, isAdmin, status, pendingUntil?, createdAt }
+//   users/{uid}/logins/{id}           -> { uid, username, userAgent, ip, country, city, timestamp }
+//   usernames/{name}                  -> { uid, createdAt }   (unique username guard)
+//   portfolio/{content}               -> { aboutBody, projects, skills, contacts, updatedAt }
+//   analytics/portfolio               -> { totalViews, updatedAt }
+//   viewers/{uid}                     -> { username, views, firstSeen, lastSeen }
+//   config/autoApproval               -> { delayMinutes, updatedAt }
 
 service cloud.firestore {
   match /databases/{database}/documents {
@@ -31,39 +27,44 @@ service cloud.firestore {
     // ---- User profiles ----
     match /users/{uid} {
       allow read: if isSignedIn() && (request.auth.uid == uid || isAdmin());
+      // Self-registration: own uid, isAdmin false, status pending.
+      // Admin-created (console): admin may create a profile for any uid with
+      // status approved (the Auth user is created via a secondary app first).
       allow create: if isSignedIn()
         && request.resource.data.username is string
         && request.resource.data.username.size() >= 3
         && request.resource.data.username.size() <= 20
-        && request.resource.data.isAdmin == false
         && (
-          // self-registration: must be 'pending'
+          // self-registration
           (request.auth.uid == uid
-            && (request.resource.data.status is string
-                ? request.resource.data.status == 'pending'
-                : true))
-          // admin creates a pre-approved user (uid != admin's uid)
-          || (isAdmin()
-            && request.resource.data.status is string
-            && request.resource.data.status == 'approved')
+           && request.resource.data.isAdmin == false
+           && (request.resource.data.status is string
+               ? request.resource.data.status == 'pending'
+               : true))
+          ||
+          // admin creating a pre-verified user via the console
+          (isAdmin()
+           && request.resource.data.isAdmin == false
+           && request.resource.data.status == 'approved')
         );
-      // Admin can update any field. A pending user may self-approve (flip
-      // their own status pending→approved) — the time delay is enforced
-      // client-side. Users may NOT change isAdmin/username.
-      allow update: if isAdmin()
-        || (isSignedIn() && request.auth.uid == uid
-            && resource.data.status == 'pending'
-            && request.resource.data.status == 'approved'
-            && resource.data.username == request.resource.data.username
-            && resource.data.isAdmin == false
-            && request.resource.data.isAdmin == false);
+      // Admin can update any field (status, pendingUntil, etc.).
+      allow update: if isAdmin();
       allow delete: if isAdmin();
+
+      // ---- Per-user login history ----
+      match /logins/{id} {
+        allow read: if isAdmin() || (isSignedIn() && request.auth.uid == uid);
+        // A user records their own login on sign-in.
+        allow create: if isSignedIn() && request.auth.uid == uid;
+        allow update, delete: if isAdmin();
+      }
     }
 
     // ---- Username uniqueness map ----
     match /usernames/{name} {
       allow read: if true;
-      allow create: if isSignedIn();
+      allow create: if isSignedIn()
+        && request.resource.data.uid == request.auth.uid;
       allow delete: if isAdmin();
     }
 
@@ -73,26 +74,24 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
-    // ---- Settings (auto-approval delay, etc.) ----
-    match /settings/{doc} {
-      allow read: if true;
-      allow write: if isAdmin();
-    }
-
     // ---- Analytics ----
-    // Total view counter: admin reads; any signed-in user may increment.
     match /analytics/portfolio {
       allow read: if isAdmin();
       allow update: if isSignedIn();
       allow create: if isSignedIn();
     }
-    // Per-viewer record (top-level collection): admin reads all; a user
-    // creates/updates only their own document.
     match /viewers/{uid} {
       allow read: if isAdmin() || (isSignedIn() && request.auth.uid == uid);
       allow create: if isSignedIn() && request.auth.uid == uid
         && request.resource.data.uid == request.auth.uid;
       allow update: if isSignedIn() && request.auth.uid == uid;
+    }
+
+    // ---- Config (auto-approval delay, etc.) ----
+    // Public read so the client knows the delay; admin-only write.
+    match /settings/{doc} {
+      allow read: if true;
+      allow write: if isAdmin();
     }
   }
 }

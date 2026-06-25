@@ -36,6 +36,8 @@ export function WindowContents(props: WindowContentsProps) {
       return <AnalyticsContent t={props.t} user={props.user} />
     case 'console':
       return <ConsoleContent t={props.t} user={props.user} />
+    case 'devices':
+      return <DevicesContent t={props.t} user={props.user} />
     default:
       return null
   }
@@ -969,6 +971,101 @@ function ConsoleContent({ t, user }: { t: (k: string) => string; user: AuthUser 
             : t('desk.autoApprovalOff')}
         </p>
       </section>
+    </ContentShell>
+  )
+}
+
+/* ------------------------------------------------------------------ */
+/* Devices (admin only) — login history with device + location         */
+/* ------------------------------------------------------------------ */
+
+interface LoginDoc {
+  uid: string
+  username: string
+  userAgent: string
+  platform?: string
+  ip: string
+  country: string
+  city: string
+  timestamp?: { toMillis?: () => number } | string | null
+}
+
+function DevicesContent({ t, user }: { t: (k: string) => string; user: AuthUser }) {
+  const [logins, setLogins] = useState<LoginDoc[]>([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    void (async () => {
+      try {
+        const { db } = await import('@/lib/firebase')
+        const { collection, getDocs, query, orderBy, limit } = await import('firebase/firestore')
+        // Admin can read all users; for each user, read their logins subcollection.
+        const usersSnap = await getDocs(collection(db, 'users'))
+        const all: LoginDoc[] = []
+        for (const uDoc of usersSnap.docs) {
+          try {
+            const lSnap = await getDocs(
+              query(collection(db, 'users', uDoc.id, 'logins'), orderBy('timestamp', 'desc'), limit(5)),
+            )
+            lSnap.forEach((d) => {
+              all.push(d.data() as LoginDoc)
+            })
+          } catch {
+            // skip this user's logins
+          }
+        }
+        // Sort all logins by timestamp desc (client-side)
+        all.sort((a, b) => {
+          const ta = a.timestamp && typeof a.timestamp === 'object' && a.timestamp.toMillis ? a.timestamp.toMillis() : 0
+          const tb = b.timestamp && typeof b.timestamp === 'object' && b.timestamp.toMillis ? b.timestamp.toMillis() : 0
+          return tb - ta
+        })
+        setLogins(all.slice(0, 50))
+      } catch {
+        // permission denied (non-admin)
+      } finally {
+        setLoading(false)
+      }
+    })()
+  }, [])
+
+  if (!user.isAdmin) {
+    return (
+      <ContentShell title={t('desk.devices')}>
+        <p className="text-[12px] text-black/50">{t('desk.adminOnly')}</p>
+      </ContentShell>
+    )
+  }
+
+  return (
+    <ContentShell title={t('desk.devices')}>
+      <SectionTitle>{t('desk.recentLogins')}</SectionTitle>
+      {loading ? (
+        <p className="text-[12px] text-black/40">…</p>
+      ) : logins.length === 0 ? (
+        <p className="text-[12px] text-black/50">{t('desk.noLogins')}</p>
+      ) : (
+        <ul className="flex flex-col gap-1 max-h-80 overflow-y-auto">
+          {logins.map((l, i) => {
+            const ts = l.timestamp && typeof l.timestamp === 'object' && l.timestamp.toMillis
+              ? new Date(l.timestamp.toMillis()).toLocaleString()
+              : '—'
+            return (
+              <li
+                key={i}
+                className="px-2 py-1.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] border-b border-black/10"
+              >
+                <span className="font-bold min-w-[80px]">{l.username || '—'}</span>
+                <span className="text-black/60 min-w-[120px]">{l.userAgent || '—'}</span>
+                <span className="text-black/50">
+                  {l.city}, {l.country}
+                </span>
+                <span className="text-black/40 tabular-nums ml-auto">{ts}</span>
+              </li>
+            )
+          })}
+        </ul>
+      )}
     </ContentShell>
   )
 }

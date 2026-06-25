@@ -20,6 +20,7 @@ import {
   serverTimestamp,
 } from 'firebase/firestore'
 import { auth, db, usernameToEmail } from '@/lib/firebase'
+import { recordLogin } from '@/lib/session-tracker'
 
 export type UserStatus = 'pending' | 'approved' | 'rejected'
 
@@ -220,7 +221,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!USERNAME_RE.test(uname)) return { ok: false, error: 'username_invalid' as AuthErrorCode }
     if (password.length < 6) return { ok: false, error: 'password_invalid' as AuthErrorCode }
     try {
-      await signInWithEmailAndPassword(auth, usernameToEmail(uname), password)
+      const cred = await signInWithEmailAndPassword(auth, usernameToEmail(uname), password)
+      // Record this login session (device + IP + geo) for the device manager.
+      void recordLogin(cred.user.uid, uname)
       return { ok: true }
     } catch (err) {
       return { ok: false, error: mapError(err) }
