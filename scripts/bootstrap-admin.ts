@@ -81,7 +81,7 @@ async function main() {
     console.log(`[bootstrap] admin auth user created (${uid}).`)
   }
 
-  // 2. Ensure the admin profile doc with isAdmin: true.
+  // 2. Ensure the admin profile doc with isAdmin: true, status: approved.
   await db
     .collection('users')
     .doc(uid)
@@ -89,11 +89,12 @@ async function main() {
       {
         username: ADMIN_USERNAME,
         isAdmin: true,
+        status: 'approved',
         createdAt: FieldValue.serverTimestamp(),
       },
       { merge: true },
     )
-  console.log(`[bootstrap] admin profile written (isAdmin: true).`)
+  console.log(`[bootstrap] admin profile written (isAdmin: true, status: approved).`)
 
   // 3. Ensure the username uniqueness map.
   await db

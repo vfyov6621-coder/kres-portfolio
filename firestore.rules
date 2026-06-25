@@ -3,15 +3,17 @@ rules_version = '2';
 // Firestore security rules for the Kres portfolio.
 //
 // Data model:
-//   users/{uid}           -> { username, isAdmin, createdAt }   (per-user profile)
-//   usernames/{name}      -> { uid, createdAt }                 (unique username guard;
-//                            the doc id IS the lowercased username, so creating a
-//                            duplicate fails because the doc already exists)
+//   users/{uid}           -> { username, isAdmin, status, createdAt }
+//                            status: 'pending' | 'approved' | 'rejected'
+//   usernames/{name}      -> { uid, createdAt }   (unique username guard)
 //   portfolio/{content}   -> { aboutBody, projects, skills, contacts, updatedAt }
+//   analytics/portfolio   -> { totalViews, updatedAt }
+//   analytics/viewers/{uid} -> { username, views, firstSeen, lastSeen }
 //
 // Auth model:
 //   Firebase Auth email/password. email = "<username>@portfolio.local".
-//   isAdmin is a boolean on the user's profile doc, set ONLY at bootstrap.
+//   New users register with status='pending'; admin approves/rejects.
+//   isAdmin is a boolean set ONLY at bootstrap.
 
 service cloud.firestore {
   match /databases/{database}/documents {
@@ -20,7 +22,6 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    // True when the signed-in user's profile has isAdmin == true.
     function isAdmin() {
       return isSignedIn()
         && exists(/databases/$(database)/documents/users/$(request.auth.uid))
@@ -35,7 +36,12 @@ service cloud.firestore {
         && request.resource.data.username is string
         && request.resource.data.username.size() >= 3
         && request.resource.data.username.size() <= 20
-        && request.resource.data.isAdmin == false;
+        && request.resource.data.isAdmin == false
+        && (request.resource.data.status is string
+            ? request.resource.data.status == 'pending'
+            : true);
+      // Admin can update any field (including status for approve/reject).
+      // A user may NOT change their own status/isAdmin.
       allow update: if isAdmin();
       allow delete: if isAdmin();
     }
@@ -52,6 +58,21 @@ service cloud.firestore {
     match /portfolio/{doc} {
       allow read: if true;
       allow write: if isAdmin();
+    }
+
+    // ---- Analytics ----
+    // Total view counter: admin reads; any signed-in user may increment.
+    match /analytics/portfolio {
+      allow read: if isAdmin();
+      allow update: if isSignedIn();
+      allow create: if isSignedIn();
+    }
+    // Per-viewer record: admin reads all; a user creates/updates only their own.
+    match /analytics/viewers/{uid} {
+      allow read: if isAdmin() || (isSignedIn() && request.auth.uid == uid);
+      allow create: if isSignedIn() && request.auth.uid == uid
+        && request.resource.data.uid == request.auth.uid;
+      allow update: if isSignedIn() && request.auth.uid == uid;
     }
   }
 }

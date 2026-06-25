@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, type ReactNode } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { toast } from 'sonner'
 import type { Lang } from '@/lib/i18n'
 import type { AuthUser } from '@/contexts/auth-context'
@@ -32,6 +32,8 @@ export function WindowContents(props: WindowContentsProps) {
       return <ContactContent t={props.t} />
     case 'settings':
       return <SettingsContent {...props} />
+    case 'analytics':
+      return <AnalyticsContent t={props.t} user={props.user} />
     default:
       return null
   }
@@ -551,5 +553,196 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
       <span className="text-[12px] text-black/70">{label}</span>
       {children}
     </label>
+  )
+}
+
+/* ------------------------------------------------------------------ */
+/* Analytics (admin only)                                              */
+/* ------------------------------------------------------------------ */
+
+interface ViewerRow {
+  uid: string
+  username: string
+  views: number
+  lastSeen?: { toMillis?: () => number } | string | null
+}
+
+interface PendingRow {
+  uid: string
+  username: string
+  status: string
+  createdAt?: { toMillis?: () => number } | string | null
+}
+
+function tsToIso(ts: { toMillis?: () => number } | string | null | undefined): string {
+  if (!ts) return ''
+  if (typeof ts === 'string') return ts
+  if (typeof ts === 'object' && ts && typeof ts.toMillis === 'function') {
+    return new Date(ts.toMillis()).toISOString()
+  }
+  return ''
+}
+
+function fmtDate(iso: string): string {
+  if (!iso) return '—'
+  try {
+    const d = new Date(iso)
+    return d.toLocaleString()
+  } catch {
+    return iso
+  }
+}
+
+function AnalyticsContent({ t, user }: { t: (k: string) => string; user: AuthUser }) {
+  const [totalViews, setTotalViews] = useState<number | null>(null)
+  const [viewers, setViewers] = useState<ViewerRow[]>([])
+  const [pending, setPending] = useState<PendingRow[]>([])
+  const [loading, setLoading] = useState(true)
+  const [acting, setActing] = useState<string | null>(null)
+
+  const load = async () => {
+    try {
+      const { db } = await import('@/lib/firebase')
+      const { doc, getDoc, collection, getDocs, orderBy, query, updateDoc } = await import('firebase/firestore')
+
+      // Total views
+      const cSnap = await getDoc(doc(db, 'analytics', 'portfolio'))
+      setTotalViews(cSnap.exists() ? (cSnap.data().totalViews ?? 0) : 0)
+
+      // Viewers (recent first)
+      const vSnap = await getDocs(query(collection(db, 'analytics', 'viewers'), orderBy('lastSeen', 'desc')))
+      const vRows: ViewerRow[] = []
+      vSnap.forEach((d) => {
+        const data = d.data() as ViewerRow
+        vRows.push({ ...data, uid: d.id })
+      })
+      setViewers(vRows)
+
+      // Pending users
+      const uSnap = await getDocs(collection(db, 'users'))
+      const pRows: PendingRow[] = []
+      uSnap.forEach((d) => {
+        const data = d.data() as PendingRow
+        if (data.status === 'pending') {
+          pRows.push({ ...data, uid: d.id })
+        }
+      })
+      setPending(pRows)
+      void updateDoc
+    } catch {
+      // permission denied (non-admin) — leave empty
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    void load()
+  }, [])
+
+  const setStatus = async (uid: string, status: 'approved' | 'rejected') => {
+    setActing(uid)
+    try {
+      const { db } = await import('@/lib/firebase')
+      const { doc, updateDoc } = await import('firebase/firestore')
+      await updateDoc(doc(db, 'users', uid), { status })
+      toast.success(status === 'approved' ? t('desk.approved') : t('desk.rejected'))
+      setPending((prev) => prev.filter((p) => p.uid !== uid))
+    } catch {
+      toast.error(t('term.errGeneric'))
+    } finally {
+      setActing(null)
+    }
+  }
+
+  if (!user.isAdmin) {
+    return (
+      <ContentShell title={t('desk.analytics')}>
+        <p className="text-[12px] text-black/50">{t('desk.adminOnly')}</p>
+      </ContentShell>
+    )
+  }
+
+  const uniqueViewers = viewers.length
+
+  return (
+    <ContentShell title={t('desk.analytics')}>
+      {/* KPI cards */}
+      <div className="grid grid-cols-2 gap-3 mb-5">
+        <div className="p-3" style={{ ...BEVEL_IN_THIN }}>
+          <div className="text-[11px] uppercase tracking-wide text-black/50">{t('desk.totalViews')}</div>
+          <div className="text-[26px] font-bold tabular-nums mt-1">
+            {totalViews === null ? '…' : totalViews}
+          </div>
+        </div>
+        <div className="p-3" style={{ ...BEVEL_IN_THIN }}>
+          <div className="text-[11px] uppercase tracking-wide text-black/50">{t('desk.uniqueViewers')}</div>
+          <div className="text-[26px] font-bold tabular-nums mt-1">{uniqueViewers}</div>
+        </div>
+      </div>
+
+      {/* Approvals */}
+      <SectionTitle>{t('desk.approvals')}</SectionTitle>
+      {loading ? (
+        <p className="text-[12px] text-black/40">…</p>
+      ) : pending.length === 0 ? (
+        <p className="text-[12px] text-black/50">{t('desk.noPending')}</p>
+      ) : (
+        <ul className="flex flex-col gap-2 max-h-48 overflow-y-auto">
+          {pending.map((p) => (
+            <li key={p.uid} className="p-2 flex items-center justify-between gap-2" style={{ ...BEVEL_IN_THIN }}>
+              <div className="min-w-0">
+                <div className="text-[13px] font-bold truncate">{p.username}</div>
+                <div className="text-[10px] text-black/40">
+                  {t('desk.appliedAt')}: {fmtDate(tsToIso(p.createdAt))}
+                </div>
+              </div>
+              <div className="flex items-center gap-1 shrink-0">
+                <button
+                  type="button"
+                  disabled={acting === p.uid}
+                  onClick={() => void setStatus(p.uid, 'approved')}
+                  className="px-2 py-1 text-[11px] font-bold text-black min-h-[28px] disabled:opacity-50"
+                  style={{ background: FACE, ...BEVEL_OUT_THIN }}
+                >
+                  {t('desk.approve')}
+                </button>
+                <button
+                  type="button"
+                  disabled={acting === p.uid}
+                  onClick={() => void setStatus(p.uid, 'rejected')}
+                  className="px-2 py-1 text-[11px] text-black min-h-[28px] disabled:opacity-50"
+                  style={{ background: '#fff', ...BEVEL_OUT_THIN }}
+                >
+                  {t('desk.reject')}
+                </button>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {/* Recent viewers */}
+      <SectionTitle>{t('desk.recentViewers')}</SectionTitle>
+      {loading ? (
+        <p className="text-[12px] text-black/40">…</p>
+      ) : viewers.length === 0 ? (
+        <p className="text-[12px] text-black/50">{t('desk.noViewers')}</p>
+      ) : (
+        <ul className="flex flex-col gap-1 max-h-64 overflow-y-auto">
+          {viewers.map((v) => (
+            <li key={v.uid} className="px-2 py-1 flex items-center justify-between gap-2 text-[12px]">
+              <span className="font-bold truncate">{v.username || '—'}</span>
+              <span className="text-black/50 shrink-0 tabular-nums">
+                {v.views ?? 0} {t('desk.views')}
+              </span>
+              <span className="text-black/40 text-[10px] shrink-0">
+                {fmtDate(tsToIso(v.lastSeen))}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </ContentShell>
   )
 }

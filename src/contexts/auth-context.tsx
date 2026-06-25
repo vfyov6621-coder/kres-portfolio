@@ -20,10 +20,13 @@ import {
 } from 'firebase/firestore'
 import { auth, db, usernameToEmail } from '@/lib/firebase'
 
+export type UserStatus = 'pending' | 'approved' | 'rejected'
+
 export interface AuthUser {
   id: string
   username: string
   isAdmin: boolean
+  status: UserStatus
   createdAt: string
 }
 
@@ -54,11 +57,12 @@ const USERNAME_RE = /^[a-zA-Z0-9_]{3,20}$/
 interface UserProfile {
   username: string
   isAdmin: boolean
+  status?: UserStatus
   createdAt: ReturnType<typeof serverTimestamp> | string
 }
 
 /** Build the public user shape from a Firebase user + Firestore profile. */
-function toAuthUser(fbUser: FbUser, profile: { username: string; isAdmin: boolean; createdAt?: unknown }): AuthUser {
+function toAuthUser(fbUser: FbUser, profile: { username: string; isAdmin: boolean; status?: UserStatus; createdAt?: unknown }): AuthUser {
   let createdAt = ''
   const c = profile.createdAt
   if (c && typeof c === 'object' && 'toMillis' in (c as object)) {
@@ -73,6 +77,7 @@ function toAuthUser(fbUser: FbUser, profile: { username: string; isAdmin: boolea
     id: fbUser.uid,
     username: profile.username,
     isAdmin: profile.isAdmin,
+    status: profile.status ?? (profile.isAdmin ? 'approved' : 'pending'),
     createdAt,
   }
 }
@@ -156,7 +161,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const login = useCallback(async (username: string, password: string) => {
     const uname = username.trim()
     if (!USERNAME_RE.test(uname)) return { ok: false, error: 'username_invalid' as AuthErrorCode }
-    if (password.length < 4) return { ok: false, error: 'password_invalid' as AuthErrorCode }
+    if (password.length < 6) return { ok: false, error: 'password_invalid' as AuthErrorCode }
     try {
       await signInWithEmailAndPassword(auth, usernameToEmail(uname), password)
       return { ok: true }
@@ -168,7 +173,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const register = useCallback(async (username: string, password: string) => {
     const uname = username.trim()
     if (!USERNAME_RE.test(uname)) return { ok: false, error: 'username_invalid' as AuthErrorCode }
-    if (password.length < 4 || password.length > 100) {
+    if (password.length < 6 || password.length > 100) {
       return { ok: false, error: 'password_invalid' as AuthErrorCode }
     }
 
@@ -189,6 +194,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       await setDoc(doc(db, 'users', uid), {
         username: uname,
         isAdmin: false,
+        status: 'pending' as UserStatus,
         createdAt: serverTimestamp(),
       })
       await setDoc(doc(db, 'usernames', uname.toLowerCase()), {
@@ -210,7 +216,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const fbUser = auth.currentUser
     if (!fbUser) return { ok: false, error: 'invalid_credentials' as AuthErrorCode }
     if (!currentPassword || !newPassword) return { ok: false, error: 'missing_fields' as AuthErrorCode }
-    if (newPassword.length < 4 || newPassword.length > 100) {
+    if (newPassword.length < 6 || newPassword.length > 100) {
       return { ok: false, error: 'password_invalid' as AuthErrorCode }
     }
     if (newPassword === currentPassword) return { ok: false, error: 'same_password' as AuthErrorCode }

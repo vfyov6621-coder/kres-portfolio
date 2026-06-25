@@ -1,8 +1,8 @@
 import type { ComponentType, CSSProperties } from 'react'
 import type { LucideProps } from 'lucide-react'
-import { Info, FolderClosed, Cpu, Mail, Settings } from 'lucide-react'
+import { Info, FolderClosed, Cpu, Mail, Settings, BarChart3 } from 'lucide-react'
 
-export type WindowId = 'about' | 'projects' | 'skills' | 'contact' | 'settings'
+export type WindowId = 'about' | 'projects' | 'skills' | 'contact' | 'settings' | 'analytics'
 
 export interface WindowState {
   id: WindowId
@@ -27,10 +27,11 @@ export const WINDOWS: WindowMeta[] = [
   { id: 'skills', labelKey: 'desk.skills', Icon: Cpu },
   { id: 'contact', labelKey: 'desk.contact', Icon: Mail },
   { id: 'settings', labelKey: 'desk.settings', Icon: Settings },
+  { id: 'analytics', labelKey: 'desk.analytics', Icon: BarChart3 },
 ]
 
 export const DEFAULT_WINDOW_W = 520
-export const DEFAULT_WINDOW_H = 380
+export const DEFAULT_WINDOW_H = 400
 export const WINDOW_CASCADE = 26
 
 // Classic Win98 raised/outset bevel (4-side, two-tone).
