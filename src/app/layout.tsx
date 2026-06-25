@@ -19,6 +19,10 @@ export const metadata: Metadata = {
   title: "Kres — Portfolio",
   description: "Personal portfolio workspace.",
   robots: { index: false, follow: false },
+  icons: {
+    icon: "/logo.png",
+    apple: "/logo.png",
+  },
 };
 
 export default function RootLayout({

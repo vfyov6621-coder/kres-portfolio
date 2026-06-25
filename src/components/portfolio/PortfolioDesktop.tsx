@@ -4,7 +4,6 @@ import { useCallback, useMemo, useRef, useState } from 'react'
 import { Toaster as SonnerToaster } from 'sonner'
 import { useAuth } from '@/contexts/auth-context'
 import { useLanguage } from '@/contexts/language-context'
-import { MenuBar } from './MenuBar'
 import { Taskbar } from './Taskbar'
 import { StartMenu } from './StartMenu'
 import { DesktopIcons } from './DesktopIcons'
@@ -143,15 +142,6 @@ export default function PortfolioDesktop() {
       className="fixed inset-0 flex flex-col overflow-hidden bg-black text-black"
       style={{ fontFamily: 'var(--font-geist-sans), system-ui, sans-serif' }}
     >
-      <MenuBar
-        user={user}
-        lang={lang}
-        setLang={setLang}
-        t={t}
-        onChangePassword={() => openWindow('settings')}
-        onLogout={() => void logout()}
-      />
-
       {/* Desktop area */}
       <div
         ref={desktopRef}

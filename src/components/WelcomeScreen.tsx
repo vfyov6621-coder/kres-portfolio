@@ -3,11 +3,15 @@
 import { useEffect, useRef, useState } from 'react'
 import { useLanguage } from '@/contexts/language-context'
 
-const DURATION_MS = 10000 // ~10 seconds, as requested.
+const DURATION_MS = 15000 // ~15 seconds.
+
+// Public assets are served from basePath on GitHub Pages; raw <img> does not
+// get the prefix automatically, so we prepend it manually.
+const BASE_PATH = process.env.NEXT_PUBLIC_BASE_PATH || ''
 
 /**
- * Full-screen intro splash: shows the welcome image (KRESOS logo on black)
- * with a progress bar that fills over DURATION_MS, then calls onDone.
+ * Full-screen intro splash: shows the logo on black with a progress bar that
+ * fills over DURATION_MS, then calls onDone.
  * Shown once per browser session (tracked via sessionStorage).
  */
 export default function WelcomeScreen({ onDone }: { onDone: () => void }) {
@@ -40,7 +44,7 @@ export default function WelcomeScreen({ onDone }: { onDone: () => void }) {
       {/* Logo image, centered */}
       <div className="flex flex-1 items-center justify-center px-8">
         <img
-          src="/welcome.png"
+          src={`${BASE_PATH}/logo.png`}
           alt="KRESOS"
           className="max-h-[55vh] max-w-[80vw] w-auto h-auto object-contain select-none"
           draggable={false}

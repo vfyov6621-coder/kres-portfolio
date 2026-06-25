@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useSyncExternalStore } from 'react'
 import { useAuth } from '@/contexts/auth-context'
 import { initPortfolioSync } from '@/lib/portfolio-store'
 import { recordPortfolioView } from '@/lib/analytics'
@@ -10,18 +10,35 @@ import WelcomeScreen from '@/components/WelcomeScreen'
 import PendingScreen from '@/components/PendingScreen'
 
 const WELCOME_SESSION_KEY = 'kres_welcome_shown'
+const welcomeListeners = new Set<() => void>()
 
-/** Returns true if the welcome splash should show for this session. SSR-safe. */
-function shouldShowWelcome(): boolean {
-  if (typeof window === 'undefined') return false
+function subscribeWelcome(cb: () => void) {
+  welcomeListeners.add(cb)
+  return () => {
+    welcomeListeners.delete(cb)
+  }
+}
+
+/** Client snapshot: true when the welcome splash has NOT been shown yet. */
+function readWelcomeClient(): boolean {
   return !window.sessionStorage.getItem(WELCOME_SESSION_KEY)
+}
+
+/** Server snapshot: always false (no splash during SSR/build). */
+function readWelcomeServer(): boolean {
+  return false
 }
 
 export default function Home() {
   const { user, loading } = useAuth()
-  // Lazy-init: read sessionStorage once on first client render. SSR returns
-  // false (no splash on the server) so there's no hydration mismatch.
-  const [showWelcome, setShowWelcome] = useState(shouldShowWelcome)
+  // useSyncExternalStore avoids hydration mismatch: server renders false,
+  // client hydrates with false (matching), then immediately re-renders with
+  // the real sessionStorage value.
+  const showWelcome = useSyncExternalStore(
+    subscribeWelcome,
+    readWelcomeClient,
+    readWelcomeServer,
+  )
   const viewRecordedRef = useRef(false)
 
   // Subscribe to the Firestore portfolio content document once.
@@ -45,8 +62,8 @@ export default function Home() {
         onDone={() => {
           if (typeof window !== 'undefined') {
             window.sessionStorage.setItem(WELCOME_SESSION_KEY, '1')
+            welcomeListeners.forEach((l) => l())
           }
-          setShowWelcome(false)
         }}
       />
     )
