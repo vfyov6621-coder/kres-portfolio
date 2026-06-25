@@ -369,3 +369,44 @@ Stage Summary — FULLY DEPLOYED & WORKING:
 - Frontend: static Next.js export, auto-deployed on every push to main via GitHub Actions.
 - Local dev also works against real Firebase (.env has NEXT_PUBLIC_USE_FIREBASE_EMULATOR=false).
 - All features verified: terminal boot (20 procs), EN/RU i18n, login, register, uniqueness enforcement, portfolio desktop (Win98+MacOS), content synced from Firestore, change-password.
+
+---
+Task ID: 27-34
+Agent: orchestrator (main)
+Task: Add password fix (6+), verification system (pending/approved/rejected), welcome splash (10s), analytics (views + approvals).
+
+Work Log:
+- i18n: added ~40 new keys (en/ru) for analytics, approvals, welcome, pending/rejected screens, fixed password error text to "at least 6 characters".
+- auth-context: password validation now < 6 (matches Firebase minimum); added UserStatus type ('pending'|'approved'|'rejected') to AuthUser + profile; register() now writes status:'pending'; onAuthStateChanged derives status (admin defaults to approved for back-compat).
+- firestore.rules: rewrote to add `status` field validation on user create, and new `analytics/portfolio` (admin read, signed-in update) + `analytics/viewers/{uid}` (self create/update, admin read all) collections.
+- bootstrap-admin.ts: admin profile now written with status:'approved'. Re-ran bootstrap → admin updated.
+- src/lib/analytics.ts: recordPortfolioView(uid, username) — increments analytics/portfolio.totalViews + upserts analytics/viewers/{uid} with views count + lastSeen. Best-effort (never blocks UI).
+- src/components/WelcomeScreen.tsx: full-screen black splash, KRESOS logo image (public/welcome.png), 10s progress bar (requestAnimationFrame), then onDone. Shown once per session (sessionStorage flag).
+- src/components/PendingScreen.tsx: shown when user.status !== 'approved'; yellow pulse for pending, red for rejected; logout button.
+- src/app/page.tsx: routing = welcome (sessionStorage-gated) → loading → terminal | pending | desktop; records a portfolio view via recordPortfolioView when an approved user lands (once per mount via ref).
+- types.ts: added 'analytics' to WindowId + BarChart3 icon; bumped default window height to 400.
+- WindowContents.tsx: added AnalyticsContent (admin only) — KPI cards (totalViews, uniqueViewers), pending approvals list with Approve/Reject buttons (updateDoc users/{uid}.status), recent viewers list with per-user view counts + lastSeen.
+- Copied welcome.png to public/.
+- Lint: fixed two react-hooks/set-state-in-effect errors (lazy useState initializer for welcome flag, useRef for view-recorded flag).
+- Committed + pushed to GitHub (commit 7a2e60b) → GitHub Actions workflow triggered.
+
+RULES DEPLOY BLOCKER:
+- Could NOT deploy the updated firestore.rules via REST API: Firebase Rules API PATCH on releases/cloud.firestore rejects the `rulesetName` field (HTTP 400 "Unknown name") even though GET returns it — same bug as before. firebase CLI requires interactive `firebase login` (no Google account available here).
+- Current production rules are the OLD version (without analytics collection + without status validation). Consequences with old rules:
+  - Registration still works (old rules allow user create with isAdmin==false; the extra `status` field is accepted).
+  - Pending page works (auth-context reads status from the profile doc; admin defaults to approved).
+  - Analytics window shows "No pending applications" because old rules only allow `get` (single doc), not `list` (collection) — admin can't enumerate users/viewers.
+  - recordPortfolioView silently fails (analytics collection blocked) → views not counted.
+- User must paste the updated firestore.rules into the console (Firestore → Rules → Publish) to enable analytics + approvals listing.
+
+Self-verification (Agent Browser, local dev against real Firebase):
+- Welcome splash: shows KRESOS logo + progress bar 0→100% over ~10s, then transitions to terminal. ✓ (sessionStorage prevents repeat in same session)
+- Login kres/190565 → desktop with "kres ADMIN" badge (status:approved). ✓
+- Register viewer1/view1234 → "PENDING" + "Application under review" page. ✓
+- viewer1 profile in Firestore: status=pending (verified via admin SDK). ✓
+- Analytics window (as kres): opens, shows TOTAL VIEWS + UNIQUE VIEWERS KPI cards. "No pending applications" shown because old rules block `list` (will work after rules update).
+- Lint: clean. Dev server: no errors.
+
+Stage Summary:
+- Code complete + pushed. 4 features implemented: password 6+, verification (pending→approved/rejected), welcome splash, analytics.
+- BLOCKED on manual rules update: user must paste the new firestore.rules (with analytics collection + status field) into Firebase Console → Firestore → Rules → Publish. Then analytics + approvals will work in production.
