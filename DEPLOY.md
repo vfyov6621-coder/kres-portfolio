@@ -241,11 +241,6 @@ bun run dev
 > wipe the emulator data (`firebase emulators:exec --project kres-portfolio
 > 'echo reset'` or simply restart the emulators with `--import`/`--export`).
 
-> **Sandbox note:** if you're previewing this project inside the Z.ai cloud
-> sandbox, use the **Preview Panel** on the right (or the **Open in New Tab**
-> button above it) instead of `http://localhost:3000` — that port is internal
-> to the sandbox and not reachable from your browser. On your own machine,
-> `http://localhost:3000` works as usual.
 
 ---
 

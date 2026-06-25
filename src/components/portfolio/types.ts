@@ -1,8 +1,8 @@
 import type { ComponentType, CSSProperties } from 'react'
 import type { LucideProps } from 'lucide-react'
-import { Info, FolderClosed, Cpu, Mail, Settings, BarChart3, Terminal, MonitorSmartphone } from 'lucide-react'
+import { Info, FolderClosed, Cpu, Mail, Settings, BarChart3, Terminal, MonitorSmartphone, MessageSquare } from 'lucide-react'
 
-export type WindowId = 'about' | 'projects' | 'skills' | 'contact' | 'settings' | 'analytics' | 'console' | 'devices'
+export type WindowId = 'about' | 'projects' | 'skills' | 'contact' | 'settings' | 'analytics' | 'console' | 'devices' | 'chat'
 
 export interface WindowState {
   id: WindowId
@@ -30,6 +30,7 @@ export const WINDOWS: WindowMeta[] = [
   { id: 'analytics', labelKey: 'desk.analytics', Icon: BarChart3 },
   { id: 'console', labelKey: 'desk.console', Icon: Terminal },
   { id: 'devices', labelKey: 'desk.devices', Icon: MonitorSmartphone },
+  { id: 'chat', labelKey: 'desk.chat', Icon: MessageSquare },
 ]
 
 export const DEFAULT_WINDOW_W = 520

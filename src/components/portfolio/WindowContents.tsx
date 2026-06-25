@@ -1,10 +1,17 @@
 'use client'
 
-import { useEffect, useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { toast } from 'sonner'
 import type { Lang } from '@/lib/i18n'
 import type { AuthUser } from '@/contexts/auth-context'
 import { usePortfolioStore } from '@/lib/portfolio-store'
+import {
+  subscribeToChat,
+  sendChatMessage,
+  cleanupExpiredMessages,
+  cooldownRemaining,
+  type ChatMessage,
+} from '@/lib/chat'
 import type { WindowId } from './types'
 import { BEVEL_IN_THIN, BEVEL_OUT_THIN, FACE } from './types'
 
@@ -38,6 +45,8 @@ export function WindowContents(props: WindowContentsProps) {
       return <ConsoleContent t={props.t} user={props.user} />
     case 'devices':
       return <DevicesContent t={props.t} user={props.user} />
+    case 'chat':
+      return <ChatContent t={props.t} user={props.user} />
     default:
       return null
   }
@@ -1067,5 +1076,130 @@ function DevicesContent({ t, user }: { t: (k: string) => string; user: AuthUser 
         </ul>
       )}
     </ContentShell>
+  )
+}
+
+/* ------------------------------------------------------------------ */
+/* Chat — real-time, 30s cooldown, auto-clear at 00:00 MSK             */
+/* ------------------------------------------------------------------ */
+
+function ChatContent({ t, user }: { t: (k: string) => string; user: AuthUser }) {
+  const [messages, setMessages] = useState<ChatMessage[]>([])
+  const [input, setInput] = useState('')
+  const [cooldown, setCooldown] = useState(0)
+  const [sending, setSending] = useState(false)
+  const scrollRef = useRef<HTMLDivElement | null>(null)
+
+  // Subscribe to real-time messages + cleanup expired ones on mount.
+  useEffect(() => {
+    const unsub = subscribeToChat(
+      (msgs) => setMessages(msgs),
+      () => setMessages([]),
+    )
+    void cleanupExpiredMessages()
+    return unsub
+  }, [])
+
+  // Cooldown ticker — update every second.
+  useEffect(() => {
+    const id = setInterval(() => {
+      setCooldown(cooldownRemaining())
+    }, 1000)
+    return () => clearInterval(id)
+  }, [])
+
+  // Auto-scroll to bottom on new messages.
+  useEffect(() => {
+    const el = scrollRef.current
+    if (el) el.scrollTop = el.scrollHeight
+  }, [messages])
+
+  const onSend = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (sending || cooldown > 0) return
+    setSending(true)
+    const res = await sendChatMessage(user.id, user.username, input)
+    if (res.ok) {
+      setInput('')
+      setCooldown(cooldownRemaining())
+    } else {
+      const msg = res.error === 'cooldown'
+        ? t('desk.chatCooldown').replace('{sec}', String(Math.ceil(cooldownRemaining() / 1000)))
+        : res.error === 'too_long'
+          ? t('desk.chatTooLong')
+          : t('desk.chatError')
+      toast.error(msg)
+    }
+    setSending(false)
+  }
+
+  return (
+    <div className="flex flex-col h-full max-h-[60vh]">
+      {/* Header */}
+      <div className="px-4 py-2 border-b border-black/15 flex items-center justify-between shrink-0">
+        <h2 className="text-[14px] font-bold">{t('desk.chat')}</h2>
+        <span className="text-[10px] text-black/40">{t('desk.chatCleared')}</span>
+      </div>
+
+      {/* Messages */}
+      <div
+        ref={scrollRef}
+        className="flex-1 overflow-y-auto px-3 py-2 flex flex-col gap-1.5 min-h-[200px]"
+      >
+        {messages.length === 0 ? (
+          <p className="text-[12px] text-black/40 italic m-auto">{t('desk.chatEmpty')}</p>
+        ) : (
+          messages.map((m) => {
+            const isMe = m.uid === user.id
+            const ts = m.createdAt && typeof m.createdAt === 'object' && m.createdAt.toMillis
+              ? new Date(m.createdAt.toMillis()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+              : ''
+            return (
+              <div
+                key={m.id}
+                className={`flex flex-col max-w-[80%] ${isMe ? 'self-end items-end' : 'self-start items-start'}`}
+              >
+                {!isMe && (
+                  <span className="text-[10px] font-bold text-black/50 mb-0.5 px-1">{m.username}</span>
+                )}
+                <div
+                  className="px-2.5 py-1.5 text-[13px] break-words whitespace-pre-line"
+                  style={
+                    isMe
+                      ? { background: '#000', color: '#fff' }
+                      : { background: '#fff', ...BEVEL_IN_THIN }
+                  }
+                >
+                  {m.text}
+                </div>
+                {ts && <span className="text-[9px] text-black/30 mt-0.5 px-1">{ts}</span>}
+              </div>
+            )
+          })
+        )}
+      </div>
+
+      {/* Input */}
+      <form onSubmit={onSend} className="px-3 py-2 border-t border-black/15 flex items-center gap-2 shrink-0">
+        <input
+          type="text"
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          placeholder={cooldown > 0 ? t('desk.chatCooldown').replace('{sec}', String(Math.ceil(cooldown / 1000))) : t('desk.chatPlaceholder')}
+          disabled={cooldown > 0 || sending}
+          maxLength={500}
+          className="flex-1 px-2 py-1.5 text-[13px] bg-white text-black outline-none disabled:opacity-50"
+          style={{ ...BEVEL_IN_THIN }}
+        />
+        <button
+          type="submit"
+          disabled={cooldown > 0 || sending || !input.trim()}
+          className="px-3 py-1.5 text-[12px] font-bold text-black disabled:opacity-50 min-h-[36px] shrink-0"
+          style={{ background: FACE, ...BEVEL_OUT_THIN }}
+        >
+          {t('desk.chatSend')}
+        </button>
+      </form>
+    </div>
   )
 }

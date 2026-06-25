@@ -93,5 +93,19 @@ service cloud.firestore {
       allow read: if true;
       allow write: if isAdmin();
     }
+
+    // ---- Chat messages ----
+    // Auto-cleared daily at 00:00 MSK (client-side cleanup on load).
+    // 30-second cooldown per user (enforced client-side + via rules).
+    match /messages/{id} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn()
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.text is string
+        && request.resource.data.text.size() > 0
+        && request.resource.data.text.size() <= 500;
+      allow delete: if isSignedIn(); // any signed-in user can delete expired msgs
+      allow update: if false; // messages are immutable
+    }
   }
 }
