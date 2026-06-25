@@ -410,3 +410,32 @@ Self-verification (Agent Browser, local dev against real Firebase):
 Stage Summary:
 - Code complete + pushed. 4 features implemented: password 6+, verification (pending→approved/rejected), welcome splash, analytics.
 - BLOCKED on manual rules update: user must paste the new firestore.rules (with analytics collection + status field) into Firebase Console → Firestore → Rules → Publish. Then analytics + approvals will work in production.
+
+---
+Task ID: 35
+Agent: orchestrator (main)
+Task: Fix analytics viewers not recording + verify full verification flow.
+
+Work Log:
+- Found bug: doc(db,'analytics','viewers',uid) created a 3-segment path (collection/doc/collection) which is an invalid document reference. Moved viewers to a top-level collection `viewers/{uid}`.
+- Split AnalyticsContent.load() into 3 independent try-catch blocks (totalViews, viewers, pending) so one failing query no longer blocks the others.
+- Removed orderBy('lastSeen','desc') from viewers query → sort client-side instead (avoids needing a composite index).
+- Updated firestore.rules: `match /viewers/{uid}` (top-level) instead of `match /analytics/viewers/{uid}`.
+- Could NOT deploy updated rules via REST API (same field-name bug: `rulesetName` rejected on PATCH). firebase CLI requires interactive login. User must paste rules manually.
+- Committed + pushed (c432665) → GitHub Actions triggered.
+
+Self-verification (Agent Browser, local dev against real Firebase, with OLD production rules):
+- Welcome splash (10s) → terminal → login kres/190565 → desktop. ✓
+- Analytics window: TOTAL VIEWS counter works (incremented on each kres visit). ✓
+- Pending approvals: viewer1 + another applicant shown with Approve/Reject buttons. ✓
+- Clicked Approve on viewer1 → toast "Approved" → viewer1 removed from pending list. ✓
+- Logout → login viewer1/view1234 → desktop with "viewer1 USER" badge (no longer pending). ✓ Verification flow works end-to-end.
+- Viewers list: "No viewers yet" because old production rules use `analytics/viewers/{uid}` path but new code writes to `viewers/{uid}` → writes silently fail. Will work after user pastes the updated rules.
+
+Stage Summary:
+- Verification system: FULLY WORKING (register→pending→admin approve→login). ✓
+- Welcome splash: WORKING. ✓
+- Password 6+ fix: WORKING. ✓
+- Analytics total views: WORKING (counter increments).
+- Analytics viewers list: BLOCKED on rules update (path changed from analytics/viewers to top-level viewers).
+- User must paste the updated firestore.rules one more time to enable viewers recording.
