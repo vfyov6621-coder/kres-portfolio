@@ -15,13 +15,15 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+const BASE_PATH = process.env.NEXT_PUBLIC_BASE_PATH || "";
+
 export const metadata: Metadata = {
   title: "Kres — Portfolio",
   description: "Personal portfolio workspace.",
   robots: { index: false, follow: false },
   icons: {
-    icon: "/logo.png",
-    apple: "/logo.png",
+    icon: `${BASE_PATH}/logo.png`,
+    apple: `${BASE_PATH}/logo.png`,
   },
 };
 
