@@ -34,6 +34,8 @@ export function WindowContents(props: WindowContentsProps) {
       return <SettingsContent {...props} />
     case 'analytics':
       return <AnalyticsContent t={props.t} user={props.user} />
+    case 'console':
+      return <ConsoleContent t={props.t} user={props.user} />
     default:
       return null
   }
@@ -757,6 +759,216 @@ function AnalyticsContent({ t, user }: { t: (k: string) => string; user: AuthUse
           ))}
         </ul>
       )}
+    </ContentShell>
+  )
+}
+
+/* ------------------------------------------------------------------ */
+/* Console (admin only) — create verified users + auto-approval delay  */
+/* ------------------------------------------------------------------ */
+
+function ConsoleContent({ t, user }: { t: (k: string) => string; user: AuthUser }) {
+  // Create verified user form state
+  const [cuUsername, setCuUsername] = useState('')
+  const [cuPassword, setCuPassword] = useState('')
+  const [cuConfirm, setCuConfirm] = useState('')
+  const [cuBusy, setCuBusy] = useState(false)
+
+  // Auto-approval delay state
+  const [delay, setDelay] = useState<number>(0)
+  const [delayInput, setDelayInput] = useState('0')
+  const [delayBusy, setDelayBusy] = useState(false)
+  const [delayLoaded, setDelayLoaded] = useState(false)
+
+  // Load current delay once.
+  useEffect(() => {
+    void (async () => {
+      try {
+        const { getAutoApprovalDelay } = await import('@/contexts/auth-context')
+        const d = await getAutoApprovalDelay()
+        setDelay(d)
+        setDelayInput(String(d))
+      } catch {
+        // ignore
+      } finally {
+        setDelayLoaded(true)
+      }
+    })()
+  }, [])
+
+  const onCreateUser = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!cuUsername || !cuPassword || !cuConfirm) {
+      toast.error(t('term.errMissingFields'))
+      return
+    }
+    if (cuPassword !== cuConfirm) {
+      toast.error(t('term.errPasswordMismatch'))
+      return
+    }
+    if (cuPassword.length < 6) {
+      toast.error(t('term.errPasswordInvalid'))
+      return
+    }
+    if (!/^[a-zA-Z0-9_]{3,20}$/.test(cuUsername)) {
+      toast.error(t('term.errUsernameInvalid'))
+      return
+    }
+    setCuBusy(true)
+    try {
+      const { adminCreateUser, db } = await import('@/lib/firebase')
+      const { doc, setDoc, getDoc, serverTimestamp } = await import('firebase/firestore')
+
+      // Pre-check username uniqueness.
+      const nameSnap = await getDoc(doc(db, 'usernames', cuUsername.toLowerCase()))
+      if (nameSnap.exists()) {
+        toast.error(t('term.errUsernameTaken'))
+        setCuBusy(false)
+        return
+      }
+
+      // Create the Auth user (secondary app — admin stays logged in).
+      const uid = await adminCreateUser(cuUsername, cuPassword)
+
+      // Write profile as approved + username map.
+      await setDoc(doc(db, 'users', uid), {
+        username: cuUsername,
+        isAdmin: false,
+        status: 'approved',
+        createdAt: serverTimestamp(),
+      })
+      await setDoc(doc(db, 'usernames', cuUsername.toLowerCase()), {
+        uid,
+        createdAt: serverTimestamp(),
+      })
+
+      toast.success(t('desk.userCreated'))
+      setCuUsername('')
+      setCuPassword('')
+      setCuConfirm('')
+    } catch (err) {
+      const code = (err as { code?: string })?.code ?? ''
+      if (code === 'auth/email-already-in-use') {
+        toast.error(t('term.errUsernameTaken'))
+      } else if (code === 'auth/weak-password') {
+        toast.error(t('term.errPasswordInvalid'))
+      } else {
+        toast.error(t('term.errGeneric'))
+      }
+    } finally {
+      setCuBusy(false)
+    }
+  }
+
+  const onSaveDelay = async () => {
+    const n = Math.max(0, Math.floor(Number(delayInput) || 0))
+    setDelayBusy(true)
+    try {
+      const { db } = await import('@/lib/firebase')
+      const { doc, setDoc, serverTimestamp } = await import('firebase/firestore')
+      await setDoc(doc(db, 'settings', 'autoApproval'), {
+        delayMinutes: n,
+        updatedAt: serverTimestamp(),
+      })
+      setDelay(n)
+      toast.success(t('desk.delaySaved'))
+    } catch {
+      toast.error(t('term.errGeneric'))
+    } finally {
+      setDelayBusy(false)
+    }
+  }
+
+  if (!user.isAdmin) {
+    return (
+      <ContentShell title={t('desk.console')}>
+        <p className="text-[12px] text-black/50">{t('desk.adminOnly')}</p>
+      </ContentShell>
+    )
+  }
+
+  return (
+    <ContentShell title={t('desk.console')}>
+      {/* Create verified user */}
+      <form onSubmit={onCreateUser} className="mb-6">
+        <SectionTitle>{t('desk.createUser')}</SectionTitle>
+        <div className="flex flex-col gap-2 max-w-md">
+          <Field label={t('term.username')}>
+            <input
+              type="text"
+              value={cuUsername}
+              onChange={(e) => setCuUsername(e.target.value)}
+              autoCapitalize="off"
+              autoCorrect="off"
+              spellCheck={false}
+              className="w-full px-2 py-1 text-[13px] bg-white text-black outline-none"
+              style={{ ...BEVEL_IN_THIN }}
+            />
+          </Field>
+          <Field label={t('term.password')}>
+            <input
+              type="password"
+              value={cuPassword}
+              onChange={(e) => setCuPassword(e.target.value)}
+              autoComplete="new-password"
+              className="w-full px-2 py-1 text-[13px] bg-white text-black outline-none"
+              style={{ ...BEVEL_IN_THIN }}
+            />
+          </Field>
+          <Field label={t('term.confirmPassword')}>
+            <input
+              type="password"
+              value={cuConfirm}
+              onChange={(e) => setCuConfirm(e.target.value)}
+              autoComplete="new-password"
+              className="w-full px-2 py-1 text-[13px] bg-white text-black outline-none"
+              style={{ ...BEVEL_IN_THIN }}
+            />
+          </Field>
+          <div className="mt-1">
+            <button
+              type="submit"
+              disabled={cuBusy}
+              className="px-4 py-1.5 text-[13px] font-bold text-black disabled:opacity-50 min-h-[36px]"
+              style={{ background: FACE, ...BEVEL_OUT_THIN }}
+            >
+              {t('desk.createUser')}
+            </button>
+          </div>
+        </div>
+      </form>
+
+      {/* Auto-approval delay */}
+      <section>
+        <SectionTitle>{t('desk.autoApproval')}</SectionTitle>
+        <p className="text-[11px] text-black/50 mb-3 max-w-md">{t('desk.autoApprovalHint')}</p>
+        <div className="flex flex-wrap items-center gap-2 max-w-md">
+          <input
+            type="number"
+            min={0}
+            value={delayInput}
+            onChange={(e) => setDelayInput(e.target.value)}
+            disabled={!delayLoaded}
+            className="w-24 px-2 py-1 text-[13px] bg-white text-black outline-none tabular-nums"
+            style={{ ...BEVEL_IN_THIN }}
+          />
+          <span className="text-[12px] text-black/60">{t('desk.delayMinutes')}</span>
+          <button
+            type="button"
+            onClick={() => void onSaveDelay()}
+            disabled={delayBusy || !delayLoaded}
+            className="px-3 py-1.5 text-[12px] font-bold text-black disabled:opacity-50 min-h-[32px]"
+            style={{ background: FACE, ...BEVEL_OUT_THIN }}
+          >
+            {t('desk.saveDelay')}
+          </button>
+        </div>
+        <p className="mt-2 text-[11px] text-black/50">
+          {delay > 0
+            ? `${t('desk.autoApproval')}: ${delay} ${t('desk.delayMinutes')}`
+            : t('desk.autoApprovalOff')}
+        </p>
+      </section>
     </ContentShell>
   )
 }

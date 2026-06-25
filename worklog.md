@@ -467,3 +467,18 @@ Stage Summary:
 - All 4 user requests done: image loads, new logo added (welcome + favicon), top menu bar removed, loading 15s.
 - Firestore rules deployed programmatically (found the correct REST API format — wrapped in `release` object with updateMask query param).
 - Analytics fully working: total views + unique viewers + recent viewers list + pending approvals with approve/reject.
+
+---
+Task ID: 37
+Agent: orchestrator (main)
+Task: Replace logo with the new uploaded image.
+
+Work Log:
+- Analyzed upload/pasted_image_1782372332554.png (1536×1024, RGBA, 250KB).
+- Verified via pixel inspection: background is transparent (alpha=0 at corners), cross is white — will render correctly on the black welcome screen.
+- Optimized with sharp → 1024×683, 3.5KB (70× smaller). Replaced public/logo.png.
+- Committed + pushed (1309f7b) → GitHub Actions deployed successfully.
+- Verified on production: logo.png loads (HTTP 200, 3553 bytes). Local browser: image renders at 1024×683 on welcome screen.
+
+Stage Summary:
+- New logo live on https://vfyov6621-coder.github.io/kres-portfolio/ — shows on welcome splash (15s) + favicon.

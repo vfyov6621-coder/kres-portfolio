@@ -65,3 +65,25 @@ void setPersistence(auth, browserLocalPersistence)
 export function usernameToEmail(username: string): string {
   return `${username.toLowerCase()}@portfolio.local`
 }
+
+/**
+ * Create a new Firebase Auth user WITHOUT signing them in (the admin's current
+ * session is preserved). Uses a secondary Firebase app instance per the
+ * official Firebase guidance for admin-created accounts on the client.
+ *
+ * Returns the new user's uid. Throws on failure (e.g. username taken).
+ */
+export async function adminCreateUser(username: string, password: string): Promise<string> {
+  const { initializeApp: initApp, deleteApp } = await import('firebase/app')
+  const { getAuth: getAuthSecondary, createUserWithEmailAndPassword: createUser, signOut: signOutSecondary } = await import('firebase/auth')
+
+  const secondaryApp = initApp(firebaseConfig, 'secondary-' + Date.now())
+  try {
+    const cred = await createUser(getAuthSecondary(secondaryApp), usernameToEmail(username), password)
+    await signOutSecondary(getAuthSecondary(secondaryApp))
+    return cred.user.uid
+  } finally {
+    await deleteApp(secondaryApp)
+  }
+}
+

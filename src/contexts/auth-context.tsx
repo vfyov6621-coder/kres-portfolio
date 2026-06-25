@@ -16,6 +16,7 @@ import {
   doc,
   getDoc,
   setDoc,
+  updateDoc,
   serverTimestamp,
 } from 'firebase/firestore'
 import { auth, db, usernameToEmail } from '@/lib/firebase'
@@ -107,11 +108,57 @@ function mapError(err: unknown): AuthErrorCode {
   }
 }
 
+/** Fetch the auto-approval delay (in minutes) from settings/autoApproval. 0 = off. */
+export async function getAutoApprovalDelay(): Promise<number> {
+  try {
+    const snap = await getDoc(doc(db, 'settings', 'autoApproval'))
+    if (snap.exists()) {
+      const v = snap.data().delayMinutes
+      if (typeof v === 'number' && v >= 0) return v
+    }
+  } catch {
+    // ignore — treat as off
+  }
+  return 0
+}
+
+/**
+ * If the user is pending and the auto-approval delay has elapsed since their
+ * registration createdAt, flip their status to approved. Returns true if the
+ * user is now approved.
+ */
+async function tryAutoApprove(uid: string, profile: UserProfile): Promise<boolean> {
+  const delayMinutes = await getAutoApprovalDelay()
+  if (delayMinutes <= 0) return false
+  const createdMs = tsToMs(profile.createdAt)
+  if (!createdMs) return false
+  const elapsed = Date.now() - createdMs
+  if (elapsed < delayMinutes * 60_000) return false
+  try {
+    await updateDoc(doc(db, 'users', uid), { status: 'approved' as UserStatus })
+    return true
+  } catch {
+    return false
+  }
+}
+
+/** Convert a Firestore Timestamp / string / number to milliseconds. */
+function tsToMs(ts: unknown): number {
+  if (!ts) return 0
+  if (typeof ts === 'number') return ts
+  if (typeof ts === 'string') return new Date(ts).getTime() || 0
+  if (typeof ts === 'object' && ts && typeof (ts as { toMillis?: () => number }).toMillis === 'function') {
+    return (ts as { toMillis: () => number }).toMillis()
+  }
+  return 0
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null)
   const [loading, setLoading] = useState(true)
 
   // Listen to Firebase Auth state; fetch the Firestore profile for isAdmin.
+  // Auto-approves pending users once the configured delay has elapsed.
   useEffect(() => {
     let cancelled = false
     const unsub = onAuthStateChanged(auth, async (fbUser) => {
@@ -123,13 +170,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
       try {
         const snap = await getDoc(doc(db, 'users', fbUser.uid))
-        if (snap.exists()) {
-          const profile = snap.data() as UserProfile
-          setUser(toAuthUser(fbUser, profile))
-        } else {
-          // Profile missing (shouldn't normally happen) — sign out gracefully.
+        if (!snap.exists()) {
           setUser(null)
+          setLoading(false)
+          return
         }
+        const profile = snap.data() as UserProfile
+
+        // Auto-approval: if the user is pending and the configured delay has
+        // elapsed since their registration, flip their status to approved.
+        if (profile.status === 'pending' && !profile.isAdmin) {
+          const approved = await tryAutoApprove(fbUser.uid, profile)
+          if (approved) {
+            profile.status = 'approved'
+          }
+        }
+        if (cancelled) return
+        setUser(toAuthUser(fbUser, profile))
       } catch {
         setUser(null)
       } finally {

@@ -79,7 +79,7 @@ export default function Home() {
 
   // Pending or rejected users see the holding screen instead of the portfolio.
   if (user.status !== 'approved') {
-    return <PendingScreen status={user.status} />
+    return <PendingScreen status={user.status} createdAt={user.createdAt} />
   }
 
   return <PortfolioDesktop />

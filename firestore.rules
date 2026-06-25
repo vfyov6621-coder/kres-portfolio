@@ -32,30 +32,49 @@ service cloud.firestore {
     match /users/{uid} {
       allow read: if isSignedIn() && (request.auth.uid == uid || isAdmin());
       allow create: if isSignedIn()
-        && request.auth.uid == uid
         && request.resource.data.username is string
         && request.resource.data.username.size() >= 3
         && request.resource.data.username.size() <= 20
         && request.resource.data.isAdmin == false
-        && (request.resource.data.status is string
-            ? request.resource.data.status == 'pending'
-            : true);
-      // Admin can update any field (including status for approve/reject).
-      // A user may NOT change their own status/isAdmin.
-      allow update: if isAdmin();
+        && (
+          // self-registration: must be 'pending'
+          (request.auth.uid == uid
+            && (request.resource.data.status is string
+                ? request.resource.data.status == 'pending'
+                : true))
+          // admin creates a pre-approved user (uid != admin's uid)
+          || (isAdmin()
+            && request.resource.data.status is string
+            && request.resource.data.status == 'approved')
+        );
+      // Admin can update any field. A pending user may self-approve (flip
+      // their own status pending→approved) — the time delay is enforced
+      // client-side. Users may NOT change isAdmin/username.
+      allow update: if isAdmin()
+        || (isSignedIn() && request.auth.uid == uid
+            && resource.data.status == 'pending'
+            && request.resource.data.status == 'approved'
+            && resource.data.username == request.resource.data.username
+            && resource.data.isAdmin == false
+            && request.resource.data.isAdmin == false);
       allow delete: if isAdmin();
     }
 
     // ---- Username uniqueness map ----
     match /usernames/{name} {
       allow read: if true;
-      allow create: if isSignedIn()
-        && request.resource.data.uid == request.auth.uid;
+      allow create: if isSignedIn();
       allow delete: if isAdmin();
     }
 
     // ---- Portfolio content ----
     match /portfolio/{doc} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // ---- Settings (auto-approval delay, etc.) ----
+    match /settings/{doc} {
       allow read: if true;
       allow write: if isAdmin();
     }
