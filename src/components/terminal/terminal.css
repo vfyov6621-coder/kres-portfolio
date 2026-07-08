@@ -3,8 +3,8 @@
 .term-root {
   font-family: var(--font-geist-mono), ui-monospace, 'SF Mono', Menlo, Monaco,
     Consolas, 'Liberation Mono', 'Courier New', monospace;
-  font-size: 13px;
-  line-height: 1.55;
+  font-size: 15px;
+  line-height: 1.6;
   letter-spacing: 0.01em;
   -webkit-font-smoothing: antialiased;
   text-shadow: 0 0 6px rgba(229, 229, 229, 0.16);
@@ -13,6 +13,7 @@
 @media (min-width: 640px) {
   .term-root {
     font-size: 14px;
+    line-height: 1.55;
   }
 }
 
@@ -121,9 +122,15 @@
   font-family: inherit;
   font-size: inherit;
   cursor: pointer;
-  padding: 2px 4px;
+  padding: 8px 4px;
   margin-left: -4px;
   transition: background-color 80ms linear, color 80ms linear;
+}
+
+@media (min-width: 640px) {
+  .term-link {
+    padding: 2px 4px;
+  }
 }
 .term-link:hover,
 .term-link-active,

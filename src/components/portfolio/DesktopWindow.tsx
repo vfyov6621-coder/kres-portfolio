@@ -100,14 +100,15 @@ export function DesktopWindow({
 
   if (!meta) return null
 
-  // Geometry: narrow or maximized windows fill the desktop area (with small inset on mobile).
+  // Geometry: narrow or maximized windows fill the desktop area.
+  // On mobile (narrow), leave room at top for the horizontal icon strip.
   const fills = isNarrow || state.maximized
   const style: CSSProperties = fills
     ? {
-        left: isNarrow ? 8 : 0,
-        top: isNarrow ? 8 : 0,
-        right: isNarrow ? 8 : 0,
-        bottom: isNarrow ? 8 : 0,
+        left: isNarrow ? 6 : 0,
+        top: isNarrow ? 72 : 0,
+        right: isNarrow ? 6 : 0,
+        bottom: isNarrow ? 6 : 0,
         width: 'auto',
         height: 'auto',
         zIndex: state.z,
