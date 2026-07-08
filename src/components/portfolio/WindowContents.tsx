@@ -14,6 +14,8 @@ import {
 } from '@/lib/chat'
 import type { WindowId } from './types'
 import { BEVEL_IN_THIN, BEVEL_OUT_THIN, FACE } from './types'
+import { SnakeGame, Game2048 } from './Minigames'
+import { usePrefs, applyPrefs } from '@/lib/prefs'
 
 interface WindowContentsProps {
   id: WindowId
@@ -47,6 +49,8 @@ export function WindowContents(props: WindowContentsProps) {
       return <DevicesContent t={props.t} user={props.user} />
     case 'chat':
       return <ChatContent t={props.t} user={props.user} />
+    case 'minigames':
+      return <MinigamesContent t={props.t} />
     default:
       return null
   }
@@ -342,6 +346,12 @@ function SettingsContent({
         </div>
       </section>
 
+      {/* Customization — available to everyone (client-side, per-browser) */}
+      <CustomizationSection t={t} />
+
+      {/* Admin toggles: guest access + instant approve */}
+      {user.isAdmin && <AdminToggles t={t} />}
+
       {/* Content editor — admin only */}
       {user.isAdmin ? (
         <ContentEditor t={t} />
@@ -354,6 +364,177 @@ function SettingsContent({
         </section>
       )}
     </ContentShell>
+  )
+}
+
+/* ------------------------------------------------------------------ */
+/* Customization (user-side, localStorage)                             */
+/* ------------------------------------------------------------------ */
+
+function CustomizationSection({ t }: { t: (k: string) => string }) {
+  const { theme, fontSize, accent, setTheme, setFontSize, setAccent } = usePrefs()
+  const [saved, setSaved] = useState(false)
+
+  useEffect(() => {
+    applyPrefs(theme, fontSize, accent)
+  }, [theme, fontSize, accent])
+
+  const showSaved = () => {
+    setSaved(true)
+    setTimeout(() => setSaved(false), 1500)
+  }
+
+  return (
+    <section className="mb-5">
+      <SectionTitle>{t('desk.customization')}</SectionTitle>
+
+      {/* Theme */}
+      <SubBlock label={t('desk.theme')}>
+        <div className="flex gap-2">
+          {(['auto', 'light', 'dark'] as const).map((mode) => (
+            <button
+              key={mode}
+              type="button"
+              onClick={() => { setTheme(mode); showSaved() }}
+              className="px-3 py-1.5 text-[12px] min-h-[32px]"
+              style={theme === mode ? { background: '#000', color: '#fff' } : { background: FACE, ...BEVEL_OUT_THIN }}
+            >
+              {t(`desk.theme${mode.charAt(0).toUpperCase() + mode.slice(1)}`)}
+            </button>
+          ))}
+        </div>
+      </SubBlock>
+
+      {/* Font size */}
+      <SubBlock label={t('desk.fontSize')}>
+        <div className="flex gap-2">
+          {(['small', 'medium', 'large'] as const).map((size) => (
+            <button
+              key={size}
+              type="button"
+              onClick={() => { setFontSize(size); showSaved() }}
+              className="px-3 py-1.5 text-[12px] min-h-[32px]"
+              style={fontSize === size ? { background: '#000', color: '#fff' } : { background: FACE, ...BEVEL_OUT_THIN }}
+            >
+              {t(`desk.fontSize${size.charAt(0).toUpperCase() + size.slice(1)}`)}
+            </button>
+          ))}
+        </div>
+      </SubBlock>
+
+      {/* Accent color */}
+      <SubBlock label={t('desk.accentColor')}>
+        <div className="flex items-center gap-2">
+          <input
+            type="color"
+            value={accent}
+            onChange={(e) => { setAccent(e.target.value); showSaved() }}
+            className="w-10 h-8 border border-black cursor-pointer"
+          />
+          <span className="text-[12px] tabular-nums">{accent}</span>
+        </div>
+      </SubBlock>
+
+      {saved && <p className="text-[11px] text-black/50 mt-2">{t('desk.prefsSaved')}</p>}
+      <p className="text-[10px] text-black/40 mt-2 italic">{t('desk.contentSavedAuto')}</p>
+    </section>
+  )
+}
+
+/* ------------------------------------------------------------------ */
+/* Admin toggles: guest access + instant approve                       */
+/* ------------------------------------------------------------------ */
+
+function AdminToggles({ t }: { t: (k: string) => string }) {
+  const [guestAccess, setGuestAccess] = useState(false)
+  const [instantApprove, setInstantApprove] = useState(false)
+
+  useEffect(() => {
+    void (async () => {
+      const { isGuestAccessEnabled, isInstantApproveEnabled } = await import('@/contexts/auth-context')
+      setGuestAccess(await isGuestAccessEnabled())
+      setInstantApprove(await isInstantApproveEnabled())
+    })()
+  }, [])
+
+  const toggleGuest = async () => {
+    const next = !guestAccess
+    setGuestAccess(next)
+    try {
+      const { db } = await import('@/lib/firebase')
+      const { doc, setDoc, serverTimestamp } = await import('firebase/firestore')
+      await setDoc(doc(db, 'settings', 'guestAccess'), {
+        enabled: next,
+        updatedAt: serverTimestamp(),
+      })
+      toast.success(t('desk.prefsSaved'))
+    } catch {
+      setGuestAccess(!next)
+      toast.error(t('term.errGeneric'))
+    }
+  }
+
+  const toggleInstant = async () => {
+    const next = !instantApprove
+    setInstantApprove(next)
+    try {
+      const { db } = await import('@/lib/firebase')
+      const { doc, setDoc, serverTimestamp } = await import('firebase/firestore')
+      await setDoc(doc(db, 'settings', 'instantApprove'), {
+        enabled: next,
+        updatedAt: serverTimestamp(),
+      })
+      toast.success(t('desk.prefsSaved'))
+    } catch {
+      setInstantApprove(!next)
+      toast.error(t('term.errGeneric'))
+    }
+  }
+
+  return (
+    <section className="mb-5">
+      <SectionTitle>{t('desk.settings')}</SectionTitle>
+
+      {/* Guest access */}
+      <div className="flex items-center justify-between gap-3 p-2 mb-2" style={{ ...BEVEL_IN_THIN }}>
+        <div className="min-w-0">
+          <div className="text-[13px] font-bold">{t('desk.guestAccess')}</div>
+          <div className="text-[11px] text-black/50">{t('desk.guestAccessHint')}</div>
+        </div>
+        <button
+          type="button"
+          onClick={() => void toggleGuest()}
+          className="relative w-12 h-6 shrink-0 transition-colors"
+          style={{ background: guestAccess ? '#000' : '#bbb', ...BEVEL_IN_THIN }}
+          aria-pressed={guestAccess}
+        >
+          <span
+            className="absolute top-0.5 w-5 h-5 bg-white transition-transform"
+            style={{ left: guestAccess ? '26px' : '2px' }}
+          />
+        </button>
+      </div>
+
+      {/* Instant approve */}
+      <div className="flex items-center justify-between gap-3 p-2" style={{ ...BEVEL_IN_THIN }}>
+        <div className="min-w-0">
+          <div className="text-[13px] font-bold">{t('desk.instantApprove')}</div>
+          <div className="text-[11px] text-black/50">{t('desk.instantApproveHint')}</div>
+        </div>
+        <button
+          type="button"
+          onClick={() => void toggleInstant()}
+          className="relative w-12 h-6 shrink-0 transition-colors"
+          style={{ background: instantApprove ? '#000' : '#bbb', ...BEVEL_IN_THIN }}
+          aria-pressed={instantApprove}
+        >
+          <span
+            className="absolute top-0.5 w-5 h-5 bg-white transition-transform"
+            style={{ left: instantApprove ? '26px' : '2px' }}
+          />
+        </button>
+      </div>
+    </section>
   )
 }
 
@@ -1201,5 +1382,38 @@ function ChatContent({ t, user }: { t: (k: string) => string; user: AuthUser }) 
         </button>
       </form>
     </div>
+  )
+}
+
+/* ------------------------------------------------------------------ */
+/* Minigames (Snake + 2048)                                            */
+/* ------------------------------------------------------------------ */
+
+function MinigamesContent({ t }: { t: (k: string) => string }) {
+  const [game, setGame] = useState<'snake' | '2048'>('snake')
+  return (
+    <ContentShell title={t('desk.minigames')}>
+      <div className="flex gap-2 mb-4">
+        <button
+          type="button"
+          onClick={() => setGame('snake')}
+          className="px-3 py-1.5 text-[12px] font-bold min-h-[32px]"
+          style={game === 'snake' ? { background: '#000', color: '#fff' } : { background: '#fff', ...BEVEL_OUT_THIN }}
+        >
+          {t('desk.snake')}
+        </button>
+        <button
+          type="button"
+          onClick={() => setGame('2048')}
+          className="px-3 py-1.5 text-[12px] font-bold min-h-[32px]"
+          style={game === '2048' ? { background: '#000', color: '#fff' } : { background: '#fff', ...BEVEL_OUT_THIN }}
+        >
+          {t('desk.game2048')}
+        </button>
+      </div>
+      <div className="flex justify-center py-4">
+        {game === 'snake' ? <SnakeGame /> : <Game2048 />}
+      </div>
+    </ContentShell>
   )
 }

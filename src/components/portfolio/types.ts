@@ -1,8 +1,8 @@
 import type { ComponentType, CSSProperties } from 'react'
 import type { LucideProps } from 'lucide-react'
-import { Info, FolderClosed, Cpu, Mail, Settings, BarChart3, Terminal, MonitorSmartphone, MessageSquare } from 'lucide-react'
+import { Info, FolderClosed, Cpu, Mail, Settings, BarChart3, Terminal, MonitorSmartphone, MessageSquare, Gamepad2 } from 'lucide-react'
 
-export type WindowId = 'about' | 'projects' | 'skills' | 'contact' | 'settings' | 'analytics' | 'console' | 'devices' | 'chat'
+export type WindowId = 'about' | 'projects' | 'skills' | 'contact' | 'settings' | 'analytics' | 'console' | 'devices' | 'chat' | 'minigames'
 
 export interface WindowState {
   id: WindowId
@@ -19,6 +19,7 @@ export interface WindowMeta {
   id: WindowId
   labelKey: string
   Icon: ComponentType<LucideProps>
+  adminOnly?: boolean
 }
 
 export const WINDOWS: WindowMeta[] = [
@@ -27,10 +28,11 @@ export const WINDOWS: WindowMeta[] = [
   { id: 'skills', labelKey: 'desk.skills', Icon: Cpu },
   { id: 'contact', labelKey: 'desk.contact', Icon: Mail },
   { id: 'settings', labelKey: 'desk.settings', Icon: Settings },
-  { id: 'analytics', labelKey: 'desk.analytics', Icon: BarChart3 },
-  { id: 'console', labelKey: 'desk.console', Icon: Terminal },
-  { id: 'devices', labelKey: 'desk.devices', Icon: MonitorSmartphone },
+  { id: 'minigames', labelKey: 'desk.minigames', Icon: Gamepad2 },
   { id: 'chat', labelKey: 'desk.chat', Icon: MessageSquare },
+  { id: 'analytics', labelKey: 'desk.analytics', Icon: BarChart3, adminOnly: true },
+  { id: 'console', labelKey: 'desk.console', Icon: Terminal, adminOnly: true },
+  { id: 'devices', labelKey: 'desk.devices', Icon: MonitorSmartphone, adminOnly: true },
 ]
 
 export const DEFAULT_WINDOW_W = 520

@@ -159,6 +159,7 @@ export default function PortfolioDesktop() {
           selected={selectedIcon}
           onSelect={setSelectedIcon}
           onOpen={openWindow}
+          isAdmin={user.isAdmin}
         />
 
         {windows
@@ -194,6 +195,7 @@ export default function PortfolioDesktop() {
             onClose={() => setStartOpen(false)}
             onOpen={openWindow}
             onLogout={() => void logout()}
+            isAdmin={user.isAdmin}
           />
         )}
       </div>

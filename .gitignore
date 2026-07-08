@@ -76,3 +76,4 @@ shot-*.png
 # Firebase emulator persisted data (local only)
 .firebase-data/
 tool-results/
+src/lib/db.ts

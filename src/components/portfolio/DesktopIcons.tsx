@@ -8,9 +8,11 @@ interface DesktopIconsProps {
   selected: WindowId | null
   onSelect: (id: WindowId | null) => void
   onOpen: (id: WindowId) => void
+  isAdmin?: boolean
 }
 
-export function DesktopIcons({ t, selected, onSelect, onOpen }: DesktopIconsProps) {
+export function DesktopIcons({ t, selected, onSelect, onOpen, isAdmin }: DesktopIconsProps) {
+  const visibleWindows = WINDOWS.filter((meta) => !meta.adminOnly || isAdmin)
   return (
     <div
       className="absolute z-10 top-2 left-1 flex flex-col gap-1 max-h-full overflow-y-auto no-scrollbar"
@@ -19,7 +21,7 @@ export function DesktopIcons({ t, selected, onSelect, onOpen }: DesktopIconsProp
         if (e.target === e.currentTarget) onSelect(null)
       }}
     >
-      {WINDOWS.map((meta) => {
+      {visibleWindows.map((meta) => {
         const isSelected = selected === meta.id
         return (
           <button

@@ -153,8 +153,10 @@ function BootProgress({
 /* -------------------------------------------------------------------------- */
 
 export default function TerminalAuth() {
-  const { login, register } = useAuth()
+  const { login, register, loginAsGuest } = useAuth()
   const { setLang, t } = useLanguage()
+
+  const [guestEnabled, setGuestEnabled] = useState(false)
 
   const [phase, setPhase] = useState<Phase>('boot')
   const [bootLines, setBootLines] = useState<string[]>([])
@@ -162,7 +164,7 @@ export default function TerminalAuth() {
   const [bootStarted, setBootStarted] = useState(false)
 
   const [langHover, setLangHover] = useState<Lang | null>(null)
-  const [menuChoice, setMenuChoice] = useState<'1' | '2' | null>(null)
+  const [menuChoice, setMenuChoice] = useState<'1' | '2' | '3' | null>(null)
 
   const [loginField, setLoginField] = useState<LoginField>('username')
   const [registerField, setRegisterField] = useState<RegisterField>('username')
@@ -181,6 +183,25 @@ export default function TerminalAuth() {
   useEffect(() => {
     tRef.current = t
   }, [t])
+
+  /* Check if guest access is enabled (admin setting). */
+  useEffect(() => {
+    void (async () => {
+      try {
+        const { isGuestAccessEnabled } = await import('@/contexts/auth-context')
+        setGuestEnabled(await isGuestAccessEnabled())
+      } catch {
+        setGuestEnabled(false)
+      }
+    })()
+  }, [])
+
+  const handleGuest = useCallback(async () => {
+    const res = await loginAsGuest()
+    if (!res.ok) {
+      setError(tRef.current('term.errGeneric'))
+    }
+  }, [loginAsGuest])
 
   /* Wait a tick so the LanguageProvider can detect the browser language
      before we start "typing" the boot lines. */
@@ -363,10 +384,14 @@ export default function TerminalAuth() {
         } else if (e.key === '2') {
           e.preventDefault()
           setMenuChoice('2')
+        } else if (e.key === '3' && guestEnabled) {
+          e.preventDefault()
+          setMenuChoice('3')
         } else if (e.key === 'Enter') {
           e.preventDefault()
           if (menuChoice === '1') transitionTo('login')
           else if (menuChoice === '2') transitionTo('register')
+          else if (menuChoice === '3' && guestEnabled) void handleGuest()
         }
       } else if (phase === 'login' || phase === 'register') {
         if (e.key === 'Escape') {
@@ -475,6 +500,18 @@ export default function TerminalAuth() {
             >
               <span className="term-dim">[2]</span> {t('term.optionRegister')}
             </button>
+            {guestEnabled && (
+              <button
+                type="button"
+                onClick={() => void handleGuest()}
+                onMouseEnter={() => setMenuChoice('3')}
+                className={`term-link block w-full text-left min-h-[40px] ${
+                  menuChoice === '3' ? 'term-link-active' : ''
+                }`}
+              >
+                <span className="term-dim">[3]</span> {t('desk.enterAsGuest')}
+              </button>
+            )}
             <div className="term-line term-dim mt-1">{t('term.orType')}</div>
             <div className="term-line mt-1">
               <span className="term-prompt">{'> '}</span>

@@ -87,8 +87,8 @@ service cloud.firestore {
       allow update: if isSignedIn() && request.auth.uid == uid;
     }
 
-    // ---- Config (auto-approval delay, etc.) ----
-    // Public read so the client knows the delay; admin-only write.
+    // ---- Config (auto-approval delay, guest access, instant approve, etc.) ----
+    // Public read so the client knows the settings; admin-only write.
     match /settings/{doc} {
       allow read: if true;
       allow write: if isAdmin();

@@ -9,9 +9,10 @@ interface StartMenuProps {
   onClose: () => void
   onOpen: (id: WindowId) => void
   onLogout: () => void
+  isAdmin?: boolean
 }
 
-export function StartMenu({ t, onClose, onOpen, onLogout }: StartMenuProps) {
+export function StartMenu({ t, onClose, onOpen, onLogout, isAdmin }: StartMenuProps) {
   const rootRef = useRef<HTMLDivElement>(null)
 
   // Close on outside click / Escape.
@@ -55,7 +56,7 @@ export function StartMenu({ t, onClose, onOpen, onLogout }: StartMenuProps) {
 
       {/* Menu items */}
       <div className="flex-1 py-1">
-        {WINDOWS.map((meta) => (
+        {WINDOWS.filter((meta) => !meta.adminOnly || isAdmin).map((meta) => (
           <button
             key={meta.id}
             role="menuitem"

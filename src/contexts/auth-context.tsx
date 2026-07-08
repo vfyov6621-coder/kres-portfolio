@@ -5,6 +5,7 @@ import {
   createUserWithEmailAndPassword,
   onAuthStateChanged,
   reauthenticateWithCredential,
+  signInAnonymously,
   signInWithEmailAndPassword,
   signOut,
   updatePassword,
@@ -47,6 +48,7 @@ interface AuthContextValue {
   loading: boolean
   login: (username: string, password: string) => Promise<{ ok: boolean; error?: AuthErrorCode }>
   register: (username: string, password: string) => Promise<{ ok: boolean; error?: AuthErrorCode }>
+  loginAsGuest: () => Promise<{ ok: boolean; error?: AuthErrorCode }>
   changePassword: (currentPassword: string, newPassword: string) => Promise<{ ok: boolean; error?: AuthErrorCode }>
   logout: () => Promise<void>
   refresh: () => Promise<void>
@@ -121,6 +123,28 @@ export async function getAutoApprovalDelay(): Promise<number> {
     // ignore — treat as off
   }
   return 0
+}
+
+/** Whether the admin has enabled "instant approval" (new users skip pending). */
+export async function isInstantApproveEnabled(): Promise<boolean> {
+  try {
+    const snap = await getDoc(doc(db, 'settings', 'instantApprove'))
+    if (snap.exists()) return snap.data().enabled === true
+  } catch {
+    // ignore
+  }
+  return false
+}
+
+/** Whether the admin has enabled "guest access" (anonymous browsing). */
+export async function isGuestAccessEnabled(): Promise<boolean> {
+  try {
+    const snap = await getDoc(doc(db, 'settings', 'guestAccess'))
+    if (snap.exists()) return snap.data().enabled === true
+  } catch {
+    // ignore
+  }
+  return false
 }
 
 /**
@@ -250,11 +274,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       const cred = await createUserWithEmailAndPassword(auth, usernameToEmail(uname), password)
       const uid = cred.user.uid
+      // Determine initial status: instant-approve (admin setting) → approved,
+      // otherwise pending.
+      const instant = await isInstantApproveEnabled()
+      const initialStatus: UserStatus = instant ? 'approved' : 'pending'
       // Create the profile doc + username uniqueness doc.
       await setDoc(doc(db, 'users', uid), {
         username: uname,
         isAdmin: false,
-        status: 'pending' as UserStatus,
+        status: initialStatus,
         createdAt: serverTimestamp(),
       })
       await setDoc(doc(db, 'usernames', uname.toLowerCase()), {
@@ -296,12 +324,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try { await signOut(auth) } catch { /* ignore */ }
   }, [])
 
+  const loginAsGuest = useCallback(async () => {
+    // Check that the admin has enabled guest access.
+    const allowed = await isGuestAccessEnabled()
+    if (!allowed) return { ok: false, error: 'generic' as AuthErrorCode }
+    try {
+      const cred = await signInAnonymously(auth)
+      const uid = cred.user.uid
+      // Create a guest profile (approved so they can browse; not admin).
+      await setDoc(doc(db, 'users', uid), {
+        username: `guest-${uid.slice(0, 6)}`,
+        isAdmin: false,
+        status: 'approved' as UserStatus,
+        isGuest: true,
+        createdAt: serverTimestamp(),
+      }, { merge: true })
+      return { ok: true }
+    } catch (err) {
+      return { ok: false, error: mapError(err) }
+    }
+  }, [])
+
   // Reference the collection import so tree-shaking keeps it for the rules
   // introspection tooling; harmless no-op.
   void collection
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, register, changePassword, logout, refresh }}>
+    <AuthContext.Provider value={{ user, loading, login, register, loginAsGuest, changePassword, logout, refresh }}>
       {children}
     </AuthContext.Provider>
   )
