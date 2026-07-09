@@ -17,6 +17,7 @@ export interface ChatMessage {
   text: string
   uid: string
   username: string
+  badge?: string
   createdAt: Timestamp | null
 }
 
@@ -97,6 +98,7 @@ export async function sendChatMessage(
   uid: string,
   username: string,
   text: string,
+  badge?: string,
 ): Promise<{ ok: boolean; error?: 'cooldown' | 'too_long' | 'generic' }> {
   const trimmed = text.trim()
   if (!trimmed) return { ok: false, error: 'generic' }
@@ -108,6 +110,7 @@ export async function sendChatMessage(
       text: trimmed,
       uid,
       username,
+      badge: badge || null,
       createdAt: serverTimestamp(),
     })
     if (typeof window !== 'undefined') {

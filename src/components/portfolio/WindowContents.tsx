@@ -47,6 +47,8 @@ export function WindowContents(props: WindowContentsProps) {
       return <ConsoleContent t={props.t} user={props.user} />
     case 'devices':
       return <DevicesContent t={props.t} user={props.user} />
+    case 'users':
+      return <UsersContent t={props.t} user={props.user} />
     case 'chat':
       return <ChatContent t={props.t} user={props.user} />
     case 'minigames':
@@ -1299,7 +1301,7 @@ function ChatContent({ t, user }: { t: (k: string) => string; user: AuthUser }) 
     e.preventDefault()
     if (sending || cooldown > 0) return
     setSending(true)
-    const res = await sendChatMessage(user.id, user.username, input)
+    const res = await sendChatMessage(user.id, user.username, input, user.badge)
     if (res.ok) {
       setInput('')
       setCooldown(cooldownRemaining())
@@ -1341,7 +1343,12 @@ function ChatContent({ t, user }: { t: (k: string) => string; user: AuthUser }) 
                 className={`flex flex-col max-w-[80%] ${isMe ? 'self-end items-end' : 'self-start items-start'}`}
               >
                 {!isMe && (
-                  <span className="text-[10px] font-bold text-black/50 mb-0.5 px-1">{m.username}</span>
+                  <span className="text-[10px] font-bold text-black/50 mb-0.5 px-1 flex items-center gap-1">
+                    {m.username}
+                    {m.badge && (
+                      <span className="px-1 text-[8px] uppercase border border-black/40 bg-white text-black">{m.badge}</span>
+                    )}
+                  </span>
                 )}
                 <div
                   className="px-2.5 py-1.5 text-[13px] break-words whitespace-pre-line"
@@ -1414,6 +1421,194 @@ function MinigamesContent({ t }: { t: (k: string) => string }) {
       <div className="flex justify-center py-4">
         {game === 'snake' ? <SnakeGame /> : <Game2048 />}
       </div>
+    </ContentShell>
+  )
+}
+
+/* ------------------------------------------------------------------ */
+/* Users (admin only) — list, block/unblock, assign badges            */
+/* ------------------------------------------------------------------ */
+
+interface UserDoc {
+  uid: string
+  username: string
+  isAdmin: boolean
+  status: string
+  badge?: string
+  blocked?: boolean
+  createdAt?: { toMillis?: () => number } | string | null
+}
+
+function UsersContent({ t, user }: { t: (k: string) => string; user: AuthUser }) {
+  const [users, setUsers] = useState<UserDoc[]>([])
+  const [loading, setLoading] = useState(true)
+  const [editingBadge, setEditingBadge] = useState<string | null>(null)
+  const [badgeValue, setBadgeValue] = useState('')
+
+  const load = async () => {
+    try {
+      const { db } = await import('@/lib/firebase')
+      const { collection, getDocs } = await import('firebase/firestore')
+      const snap = await getDocs(collection(db, 'users'))
+      const rows: UserDoc[] = []
+      snap.forEach((d) => {
+        rows.push({ ...(d.data() as UserDoc), uid: d.id })
+      })
+      // Sort: admins first, then by username
+      rows.sort((a, b) => {
+        if (a.isAdmin !== b.isAdmin) return a.isAdmin ? -1 : 1
+        return a.username.localeCompare(b.username)
+      })
+      setUsers(rows)
+    } catch {
+      // permission denied (non-admin)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    void load()
+  }, [])
+
+  const toggleBlock = async (u: UserDoc) => {
+    try {
+      const { db } = await import('@/lib/firebase')
+      const { doc, updateDoc } = await import('firebase/firestore')
+      const next = !u.blocked
+      await updateDoc(doc(db, 'users', u.uid), { blocked: next })
+      setUsers((prev) => prev.map((x) => (x.uid === u.uid ? { ...x, blocked: next } : x)))
+      toast.success(next ? t('desk.userBlocked') : t('desk.userUnblocked'))
+    } catch {
+      toast.error(t('term.errGeneric'))
+    }
+  }
+
+  const saveBadge = async (u: UserDoc) => {
+    try {
+      const { db } = await import('@/lib/firebase')
+      const { doc, updateDoc } = await import('firebase/firestore')
+      const val = badgeValue.trim()
+      await updateDoc(doc(db, 'users', u.uid), { badge: val || null })
+      setUsers((prev) => prev.map((x) => (x.uid === u.uid ? { ...x, badge: val || undefined } : x)))
+      setEditingBadge(null)
+      setBadgeValue('')
+      toast.success(t('desk.badgeSaved'))
+    } catch {
+      toast.error(t('term.errGeneric'))
+    }
+  }
+
+  if (!user.isAdmin) {
+    return (
+      <ContentShell title={t('desk.users')}>
+        <p className="text-[12px] text-black/50">{t('desk.adminOnly')}</p>
+      </ContentShell>
+    )
+  }
+
+  return (
+    <ContentShell title={t('desk.userManagement')}>
+      {loading ? (
+        <p className="text-[12px] text-black/40">…</p>
+      ) : users.length === 0 ? (
+        <p className="text-[12px] text-black/50">{t('desk.noUsers')}</p>
+      ) : (
+        <ul className="flex flex-col gap-2 max-h-96 overflow-y-auto">
+          {users.map((u) => {
+            const isMe = u.uid === user.id
+            const joined = u.createdAt && typeof u.createdAt === 'object' && u.createdAt.toMillis
+              ? new Date(u.createdAt.toMillis()).toLocaleDateString()
+              : '—'
+            return (
+              <li key={u.uid} className="p-2" style={{ ...BEVEL_IN_THIN, opacity: u.blocked ? 0.5 : 1 }}>
+                <div className="flex items-center justify-between gap-2 mb-1">
+                  <div className="min-w-0 flex-1">
+                    <span className="text-[13px] font-bold">{u.username}</span>
+                    {u.isAdmin && (
+                      <span className="ml-1 px-1 text-[9px] uppercase border border-black bg-black text-white">admin</span>
+                    )}
+                    {u.badge && (
+                      <span className="ml-1 px-1 text-[9px] uppercase border border-black bg-white text-black">{u.badge}</span>
+                    )}
+                    {u.blocked && (
+                      <span className="ml-1 px-1 text-[9px] uppercase border border-black bg-white text-black">{t('desk.blocked')}</span>
+                    )}
+                  </div>
+                  <span className="text-[10px] text-black/40 shrink-0">{u.status}</span>
+                </div>
+                <div className="text-[10px] text-black/40 mb-2">{t('desk.joined')}: {joined}</div>
+
+                {/* Badge editor */}
+                {editingBadge === u.uid ? (
+                  <div className="flex items-center gap-1 mb-1">
+                    <input
+                      type="text"
+                      value={badgeValue}
+                      onChange={(e) => setBadgeValue(e.target.value)}
+                      placeholder={t('desk.badgePlaceholder')}
+                      maxLength={20}
+                      className="flex-1 px-1.5 py-1 text-[12px] bg-white outline-none"
+                      style={{ ...BEVEL_IN_THIN }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => void saveBadge(u)}
+                      className="px-2 py-1 text-[11px] font-bold min-h-[28px]"
+                      style={{ background: FACE, ...BEVEL_OUT_THIN }}
+                    >
+                      OK
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => { setEditingBadge(null); setBadgeValue('') }}
+                      className="px-2 py-1 text-[11px] min-h-[28px]"
+                      style={{ background: '#fff', ...BEVEL_OUT_THIN }}
+                    >
+                      ✕
+                    </button>
+                  </div>
+                ) : null}
+
+                {/* Actions */}
+                {!isMe && (
+                  <div className="flex gap-1">
+                    {editingBadge === u.uid ? null : (
+                      <button
+                        type="button"
+                        onClick={() => { setEditingBadge(u.uid); setBadgeValue(u.badge || '') }}
+                        className="px-2 py-1 text-[11px] min-h-[28px]"
+                        style={{ background: FACE, ...BEVEL_OUT_THIN }}
+                      >
+                        {u.badge ? `✎ ${u.badge}` : `+ ${t('desk.badge')}`}
+                      </button>
+                    )}
+                    {u.badge && editingBadge !== u.uid && (
+                      <button
+                        type="button"
+                        onClick={() => { setBadgeValue(''); setEditingBadge(u.uid); }}
+                        className="px-2 py-1 text-[11px] min-h-[28px]"
+                        style={{ background: '#fff', ...BEVEL_OUT_THIN }}
+                      >
+                        {t('desk.clearBadge')}
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => void toggleBlock(u)}
+                      disabled={u.isAdmin}
+                      className="px-2 py-1 text-[11px] min-h-[28px] disabled:opacity-30 ml-auto"
+                      style={{ background: u.blocked ? FACE : '#fff', ...BEVEL_OUT_THIN }}
+                    >
+                      {u.blocked ? t('desk.unblock') : t('desk.block')}
+                    </button>
+                  </div>
+                )}
+              </li>
+            )
+          })}
+        </ul>
+      )}
     </ContentShell>
   )
 }

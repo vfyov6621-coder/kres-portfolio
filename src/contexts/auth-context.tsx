@@ -30,6 +30,8 @@ export interface AuthUser {
   username: string
   isAdmin: boolean
   status: UserStatus
+  badge?: string
+  blocked?: boolean
   createdAt: string
 }
 
@@ -62,11 +64,13 @@ interface UserProfile {
   username: string
   isAdmin: boolean
   status?: UserStatus
+  badge?: string
+  blocked?: boolean
   createdAt: ReturnType<typeof serverTimestamp> | string
 }
 
 /** Build the public user shape from a Firebase user + Firestore profile. */
-function toAuthUser(fbUser: FbUser, profile: { username: string; isAdmin: boolean; status?: UserStatus; createdAt?: unknown }): AuthUser {
+function toAuthUser(fbUser: FbUser, profile: { username: string; isAdmin: boolean; status?: UserStatus; badge?: string; blocked?: boolean; createdAt?: unknown }): AuthUser {
   let createdAt = ''
   const c = profile.createdAt
   if (c && typeof c === 'object' && 'toMillis' in (c as object)) {
@@ -82,6 +86,8 @@ function toAuthUser(fbUser: FbUser, profile: { username: string; isAdmin: boolea
     username: profile.username,
     isAdmin: profile.isAdmin,
     status: profile.status ?? (profile.isAdmin ? 'approved' : 'pending'),
+    badge: profile.badge || undefined,
+    blocked: profile.blocked === true,
     createdAt,
   }
 }
@@ -202,6 +208,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
         const profile = snap.data() as UserProfile
 
+        // Blocked users are forced out immediately.
+        if (profile.blocked === true && !profile.isAdmin) {
+          try { await signOut(auth) } catch { /* ignore */ }
+          setUser(null)
+          setLoading(false)
+          return
+        }
+
         // Auto-approval: if the user is pending and the configured delay has
         // elapsed since their registration, flip their status to approved.
         if (profile.status === 'pending' && !profile.isAdmin) {
@@ -246,6 +260,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (password.length < 6) return { ok: false, error: 'password_invalid' as AuthErrorCode }
     try {
       const cred = await signInWithEmailAndPassword(auth, usernameToEmail(uname), password)
+      // Check if the user is blocked — if so, sign them out immediately.
+      try {
+        const snap = await getDoc(doc(db, 'users', cred.user.uid))
+        if (snap.exists()) {
+          const profile = snap.data() as UserProfile
+          if (profile.blocked === true && !profile.isAdmin) {
+            try { await signOut(auth) } catch { /* ignore */ }
+            return { ok: false, error: 'generic' as AuthErrorCode }
+          }
+        }
+      } catch {
+        // profile read failed — allow login (rules will enforce)
+      }
       // Record this login session (device + IP + geo) for the device manager.
       void recordLogin(cred.user.uid, uname)
       return { ok: true }
