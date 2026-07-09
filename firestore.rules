@@ -27,26 +27,17 @@ service cloud.firestore {
     // ---- User profiles ----
     match /users/{uid} {
       allow read: if isSignedIn() && (request.auth.uid == uid || isAdmin());
-      // Self-registration: own uid, isAdmin false, status pending.
+      // Self-registration: own uid, isAdmin false, status pending or approved.
       // Admin-created (console): admin may create a profile for any uid with
       // status approved (the Auth user is created via a secondary app first).
       allow create: if isSignedIn()
+        && request.auth.uid == uid
         && request.resource.data.username is string
         && request.resource.data.username.size() >= 3
         && request.resource.data.username.size() <= 20
-        && (
-          // self-registration
-          (request.auth.uid == uid
-           && request.resource.data.isAdmin == false
-           && (request.resource.data.status is string
-               ? request.resource.data.status == 'pending'
-               : true))
-          ||
-          // admin creating a pre-verified user via the console
-          (isAdmin()
-           && request.resource.data.isAdmin == false
-           && request.resource.data.status == 'approved')
-        );
+        && request.resource.data.isAdmin == false
+        && (request.resource.data.status == 'pending'
+            || request.resource.data.status == 'approved');
       // Admin can update any field (status, pendingUntil, etc.).
       allow update: if isAdmin();
       allow delete: if isAdmin();

@@ -97,6 +97,18 @@ export default function PortfolioDesktop() {
     )
   }, [])
 
+  const resizeWindow = useCallback((id: WindowId, w: number, h: number, x?: number, y?: number) => {
+    setWindows((prev) =>
+      prev.map((win) => {
+        if (win.id !== id) return win
+        const next: WindowState = { ...win, w, h }
+        if (typeof x === 'number') next.x = x
+        if (typeof y === 'number') next.y = y
+        return next
+      }),
+    )
+  }, [])
+
   // Active = visible window with the highest z.
   const activeId = useMemo<WindowId | null>(() => {
     const visible = windows.filter((w) => !w.minimized)
@@ -176,6 +188,7 @@ export default function PortfolioDesktop() {
               onMinimize={() => toggleMinimize(w.id)}
               onMaximize={() => toggleMaximize(w.id)}
               onMove={(x, y) => moveWindow(w.id, x, y)}
+              onResize={(nw, nh, nx, ny) => resizeWindow(w.id, nw, nh, nx, ny)}
               t={t}
             >
               <WindowContents

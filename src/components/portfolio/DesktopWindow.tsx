@@ -14,11 +14,27 @@ interface DesktopWindowProps {
   onMinimize: () => void
   onMaximize: () => void
   onMove: (x: number, y: number) => void
+  onResize: (w: number, h: number, x?: number, y?: number) => void
   children: ReactNode
   t: (k: string) => string
 }
 
 type DragState = { mouseX: number; mouseY: number; winX: number; winY: number } | null
+
+type ResizeDir = 'n' | 's' | 'e' | 'w' | 'ne' | 'nw' | 'se' | 'sw'
+
+type ResizeState = {
+  dir: ResizeDir
+  mouseX: number
+  mouseY: number
+  winX: number
+  winY: number
+  winW: number
+  winH: number
+} | null
+
+const MIN_W = 280
+const MIN_H = 200
 
 export function DesktopWindow({
   state,
@@ -30,11 +46,13 @@ export function DesktopWindow({
   onMinimize,
   onMaximize,
   onMove,
+  onResize,
   children,
   t,
 }: DesktopWindowProps) {
   const meta = WINDOWS.find((m) => m.id === state.id)
   const dragRef = useRef<DragState>(null)
+  const resizeRef = useRef<ResizeState>(null)
 
   // Pointer-event dragging via setPointerCapture on the title bar.
   const onTitlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
@@ -87,11 +105,86 @@ export function DesktopWindow({
     dragRef.current = null
   }
 
+  // --- Resize handling ---
+  const onResizeStart = (dir: ResizeDir) => (e: React.PointerEvent<HTMLDivElement>) => {
+    if (e.button !== 0) return
+    if (isNarrow || state.maximized) return
+    e.stopPropagation()
+    onFocus()
+    const el = e.currentTarget
+    try {
+      el.setPointerCapture(e.pointerId)
+    } catch {
+      // ignore
+    }
+    resizeRef.current = {
+      dir,
+      mouseX: e.clientX,
+      mouseY: e.clientY,
+      winX: state.x,
+      winY: state.y,
+      winW: state.w,
+      winH: state.h,
+    }
+  }
+
+  const onResizeMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!resizeRef.current) return
+    const s = resizeRef.current
+    const dx = e.clientX - s.mouseX
+    const dy = e.clientY - s.mouseY
+    let { winX, winY, winW, winH } = s
+    const dir = s.dir
+
+    if (dir.includes('e')) {
+      winW = Math.max(MIN_W, s.winW + dx)
+    }
+    if (dir.includes('s')) {
+      winH = Math.max(MIN_H, s.winH + dy)
+    }
+    if (dir.includes('w')) {
+      const newW = Math.max(MIN_W, s.winW - dx)
+      winX = s.winX + (s.winW - newW)
+      winW = newW
+    }
+    if (dir.includes('n')) {
+      const newH = Math.max(MIN_H, s.winH - dy)
+      winY = s.winY + (s.winH - newH)
+      winH = newH
+    }
+
+    // Clamp within desktop bounds.
+    const desk = desktopRef.current
+    if (desk) {
+      const rect = desk.getBoundingClientRect()
+      if (winX < 0) { winW += winX; winX = 0 }
+      if (winY < 0) { winH += winY; winY = 0 }
+      if (winX + winW > rect.width) { winW = rect.width - winX }
+      if (winY + winH > rect.height) { winH = rect.height - winY }
+      winW = Math.max(MIN_W, winW)
+      winH = Math.max(MIN_H, winH)
+    }
+
+    onResize(winW, winH, winX, winY)
+  }
+
+  const endResize = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (resizeRef.current) {
+      try {
+        e.currentTarget.releasePointerCapture(e.pointerId)
+      } catch {
+        // ignore
+      }
+    }
+    resizeRef.current = null
+  }
+
   // Release capture on Escape.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && dragRef.current) {
+      if (e.key === 'Escape') {
         dragRef.current = null
+        resizeRef.current = null
       }
     }
     window.addEventListener('keydown', onKey)
@@ -123,6 +216,7 @@ export function DesktopWindow({
 
   const titleBarBg = focused ? FACE_DARK : FACE_LIGHT
   const titleTextColor = focused ? '#000' : '#5a5a5a'
+  const canResize = !isNarrow && !state.maximized
 
   return (
     <section
@@ -211,6 +305,74 @@ export function DesktopWindow({
           {state.maximized ? t('desk.windowMaximize') : ''}
         </span>
       </div>
+
+      {/* Resize handles — only on desktop, not maximized/narrow.
+          8 handles: 4 edges + 4 corners. Transparent, with cursor hints. */}
+      {canResize && (
+        <>
+          {/* Top edge */}
+          <div
+            onPointerDown={onResizeStart('n')}
+            onPointerMove={onResizeMove}
+            onPointerUp={endResize}
+            onPointerCancel={endResize}
+            style={{ position: 'absolute', top: -3, left: 8, right: 8, height: 6, cursor: 'ns-resize', zIndex: 10 }}
+          />
+          {/* Bottom edge */}
+          <div
+            onPointerDown={onResizeStart('s')}
+            onPointerMove={onResizeMove}
+            onPointerUp={endResize}
+            onPointerCancel={endResize}
+            style={{ position: 'absolute', bottom: -3, left: 8, right: 8, height: 6, cursor: 'ns-resize', zIndex: 10 }}
+          />
+          {/* Left edge */}
+          <div
+            onPointerDown={onResizeStart('w')}
+            onPointerMove={onResizeMove}
+            onPointerUp={endResize}
+            onPointerCancel={endResize}
+            style={{ position: 'absolute', left: -3, top: 8, bottom: 8, width: 6, cursor: 'ew-resize', zIndex: 10 }}
+          />
+          {/* Right edge */}
+          <div
+            onPointerDown={onResizeStart('e')}
+            onPointerMove={onResizeMove}
+            onPointerUp={endResize}
+            onPointerCancel={endResize}
+            style={{ position: 'absolute', right: -3, top: 8, bottom: 8, width: 6, cursor: 'ew-resize', zIndex: 10 }}
+          />
+          {/* Corners */}
+          <div
+            onPointerDown={onResizeStart('nw')}
+            onPointerMove={onResizeMove}
+            onPointerUp={endResize}
+            onPointerCancel={endResize}
+            style={{ position: 'absolute', top: -3, left: -3, width: 12, height: 12, cursor: 'nwse-resize', zIndex: 11 }}
+          />
+          <div
+            onPointerDown={onResizeStart('ne')}
+            onPointerMove={onResizeMove}
+            onPointerUp={endResize}
+            onPointerCancel={endResize}
+            style={{ position: 'absolute', top: -3, right: -3, width: 12, height: 12, cursor: 'nesw-resize', zIndex: 11 }}
+          />
+          <div
+            onPointerDown={onResizeStart('sw')}
+            onPointerMove={onResizeMove}
+            onPointerUp={endResize}
+            onPointerCancel={endResize}
+            style={{ position: 'absolute', bottom: -3, left: -3, width: 12, height: 12, cursor: 'nesw-resize', zIndex: 11 }}
+          />
+          <div
+            onPointerDown={onResizeStart('se')}
+            onPointerMove={onResizeMove}
+            onPointerUp={endResize}
+            onPointerCancel={endResize}
+            style={{ position: 'absolute', bottom: -3, right: -3, width: 12, height: 12, cursor: 'nwse-resize', zIndex: 11 }}
+          />
+        </>
+      )}
     </section>
   )
 }

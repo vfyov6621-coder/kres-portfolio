@@ -274,6 +274,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       const cred = await createUserWithEmailAndPassword(auth, usernameToEmail(uname), password)
       const uid = cred.user.uid
+      // Force-refresh the ID token so the Firestore SDK picks up the new auth
+      // state before writing (otherwise the first write can get permission-denied
+      // because Firestore still sees the anonymous/null auth context).
+      await cred.user.getIdToken(true)
       // Determine initial status: instant-approve (admin setting) → approved,
       // otherwise pending.
       const instant = await isInstantApproveEnabled()
