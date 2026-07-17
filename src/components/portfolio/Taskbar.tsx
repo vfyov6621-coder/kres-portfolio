@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { formatTrayClock, useClock } from './useClock'
-import { WINDOWS, type WindowId, type WindowState, BEVEL_IN_THIN, BEVEL_OUT_THIN, FACE } from './types'
+import { WINDOWS, type WindowId, type WindowState, ACCENT } from './types'
 
 interface TaskbarProps {
   t: (k: string) => string
@@ -19,45 +19,43 @@ export function Taskbar({ t, windows, startOpen, onStart, onTaskClick, activeId 
 
   return (
     <footer
-      className="relative z-30 flex h-11 md:h-10 items-stretch gap-1 px-1 select-none"
+      className="relative z-30 flex h-12 items-stretch gap-1 px-2 select-none"
       style={{
-        background: FACE,
-        boxShadow: 'inset 0 1px 0 0 #fff, inset 0 -1px 0 0 #808080',
+        background: 'rgba(20,20,20,0.95)',
+        backdropFilter: 'blur(20px)',
+        WebkitBackdropFilter: 'blur(20px)',
+        boxShadow: '0 -1px 0 rgba(255,255,255,0.08)',
       }}
     >
-      {/* Start button */}
+      {/* Start button — Win10 style */}
       <button
         type="button"
         onClick={onStart}
         onMouseEnter={() => setStartHover(true)}
         onMouseLeave={() => setStartHover(false)}
         aria-pressed={startOpen}
-        className="flex items-center gap-1 px-2 min-w-[64px] text-[13px] font-bold text-black"
-        style={startOpen || startHover ? BEVEL_IN_THIN : BEVEL_OUT_THIN}
+        className="flex items-center justify-center w-12 h-full transition-colors"
+        style={{ background: startOpen || startHover ? 'rgba(255,255,255,0.1)' : 'transparent' }}
       >
-        <span
-          aria-hidden
-          className="inline-block w-3.5 h-3.5 relative"
-          style={{
-            background: '#000',
-            boxShadow: 'inset 0 0 0 1px #fff, inset 0 0 0 2px #000',
-          }}
-        >
-          <span
-            className="absolute inset-[3px] block"
-            style={{ background: '#fff' }}
-          />
+        {/* Win10 logo — 4 squares */}
+        <span className="grid grid-cols-2 gap-[2px]" aria-hidden>
+          <span style={{ width: 6, height: 6, background: '#0078d4' }} />
+          <span style={{ width: 6, height: 6, background: '#0078d4' }} />
+          <span style={{ width: 6, height: 6, background: '#0078d4' }} />
+          <span style={{ width: 6, height: 6, background: '#0078d4' }} />
         </span>
-        <span className="uppercase tracking-tight">{t('desk.start')}</span>
       </button>
 
-      {/* Divider */}
-      <div className="my-0 md:my-1 w-px" style={{ background: '#808080', boxShadow: '1px 0 0 0 #fff' }} />
+      {/* Search bar — Win10 style */}
+      <div className="hidden md:flex items-center gap-2 px-3 my-1.5 text-[12px] text-white/50 rounded-[4px]" style={{ background: 'rgba(255,255,255,0.08)' }}>
+        <span>🔍</span>
+        <span>{t('desk.start')}</span>
+      </div>
 
-      {/* Window buttons (truncated) */}
-      <div className="flex-1 flex items-stretch gap-0.5 overflow-x-auto py-0 md:py-0.5 min-w-0 no-scrollbar">
+      {/* Window buttons */}
+      <div className="flex-1 flex items-stretch gap-0.5 overflow-x-auto py-1 min-w-0 no-scrollbar">
         {windows.length === 0 && (
-          <div className="flex items-center px-2 text-[12px] text-black/50 italic">
+          <div className="flex items-center px-2 text-[12px] text-white/40 italic">
             {t('desk.noWindows')}
           </div>
         )}
@@ -70,11 +68,11 @@ export function Taskbar({ t, windows, startOpen, onStart, onTaskClick, activeId 
               key={w.id}
               type="button"
               onClick={() => onTaskClick(w.id)}
-              className={
-                'flex items-center gap-1.5 px-2 text-[12px] text-black shrink-0 max-w-[180px] ' +
-                (isActive ? 'font-bold' : 'font-normal')
-              }
-              style={isActive ? BEVEL_IN_THIN : BEVEL_OUT_THIN}
+              className="flex items-center gap-1.5 px-3 text-[12px] text-white shrink-0 max-w-[200px] rounded-[4px] transition-colors"
+              style={{
+                background: isActive ? 'rgba(255,255,255,0.15)' : 'rgba(255,255,255,0.05)',
+                borderBottom: isActive ? `2px solid ${ACCENT}` : '2px solid transparent',
+              }}
               title={t(meta.labelKey)}
             >
               <meta.Icon className="w-3.5 h-3.5 shrink-0" aria-hidden />
@@ -85,12 +83,8 @@ export function Taskbar({ t, windows, startOpen, onStart, onTaskClick, activeId 
       </div>
 
       {/* System tray + clock */}
-      <div
-        className="flex items-center gap-1 px-2 text-[12px] text-black shrink-0"
-        style={BEVEL_IN_THIN}
-      >
-        <span className="tabular-nums hidden sm:inline">{formatTrayClock(now)}</span>
-        <span className="tabular-nums sm:hidden">{formatTrayClock(now)}</span>
+      <div className="flex items-center gap-2 px-3 text-[12px] text-white shrink-0">
+        <span className="tabular-nums">{formatTrayClock(now)}</span>
       </div>
     </footer>
   )

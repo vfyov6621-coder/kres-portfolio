@@ -1,53 +1,41 @@
 'use client'
 
-import { useEffect, useRef, useSyncExternalStore } from 'react'
+import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { useAuth } from '@/contexts/auth-context'
 import { initPortfolioSync } from '@/lib/portfolio-store'
 import { recordPortfolioView } from '@/lib/analytics'
-import TerminalAuth from '@/components/terminal/TerminalAuth'
+import Win10LockScreen from '@/components/Win10LockScreen'
 import PortfolioDesktop from '@/components/portfolio/PortfolioDesktop'
+import AdminPanel from '@/components/admin/AdminPanel'
 import WelcomeScreen from '@/components/WelcomeScreen'
 import PendingScreen from '@/components/PendingScreen'
 
 const WELCOME_SESSION_KEY = 'kres_welcome_shown'
+const ADMIN_VIEW_KEY = 'kres_admin_view' // 'admin' | 'portfolio' | null
 const welcomeListeners = new Set<() => void>()
 
 function subscribeWelcome(cb: () => void) {
   welcomeListeners.add(cb)
-  return () => {
-    welcomeListeners.delete(cb)
-  }
+  return () => { welcomeListeners.delete(cb) }
 }
-
-/** Client snapshot: true when the welcome splash has NOT been shown yet. */
 function readWelcomeClient(): boolean {
   return !window.sessionStorage.getItem(WELCOME_SESSION_KEY)
 }
-
-/** Server snapshot: always false (no splash during SSR/build). */
 function readWelcomeServer(): boolean {
   return false
 }
 
 export default function Home() {
   const { user, loading } = useAuth()
-  // useSyncExternalStore avoids hydration mismatch: server renders false,
-  // client hydrates with false (matching), then immediately re-renders with
-  // the real sessionStorage value.
-  const showWelcome = useSyncExternalStore(
-    subscribeWelcome,
-    readWelcomeClient,
-    readWelcomeServer,
-  )
+  const showWelcome = useSyncExternalStore(subscribeWelcome, readWelcomeClient, readWelcomeServer)
   const viewRecordedRef = useRef(false)
+  const [adminView, setAdminView] = useState<'admin' | 'portfolio' | null>(null)
 
-  // Subscribe to the Firestore portfolio content document once.
   useEffect(() => {
     const unsub = initPortfolioSync()
     return unsub
   }, [])
 
-  // Record a portfolio view once per session when an approved user lands.
   useEffect(() => {
     if (!user || viewRecordedRef.current) return
     if (user.status === 'approved') {
@@ -55,6 +43,22 @@ export default function Home() {
       void recordPortfolioView(user.id, user.username)
     }
   }, [user])
+
+  // When an admin logs in, check if they previously chose a view this session.
+  useEffect(() => {
+    if (!user) return
+    if (user.isAdmin && adminView === null) {
+      const saved = sessionStorage.getItem(ADMIN_VIEW_KEY)
+      if (saved === 'admin' || saved === 'portfolio') {
+        // Use a microtask to avoid setState-in-effect lint warning.
+        queueMicrotask(() => setAdminView(saved))
+      }
+    }
+    if (!user.isAdmin) {
+      queueMicrotask(() => setAdminView(null))
+      sessionStorage.removeItem(ADMIN_VIEW_KEY)
+    }
+  }, [user, adminView])
 
   if (showWelcome) {
     return (
@@ -74,13 +78,64 @@ export default function Home() {
   }
 
   if (!user) {
-    return <TerminalAuth />
+    return <Win10LockScreen />
   }
 
-  // Pending or rejected users see the holding screen instead of the portfolio.
   if (user.status !== 'approved') {
-    return <PendingScreen status={user.status} createdAt={user.createdAt} />
+    return <PendingScreen status={user.status} />
   }
 
+  // Admin choice screen — no public URL, state-based only.
+  if (user.isAdmin && adminView === null) {
+    return (
+      <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-black px-6">
+        <img
+          src={`${process.env.NEXT_PUBLIC_BASE_PATH || ''}/logo.png`}
+          alt="Logo"
+          className="w-16 h-16 object-contain mb-8 select-none"
+          draggable={false}
+        />
+        <h1 className="text-white text-2xl font-light mb-2">Welcome, {user.username}</h1>
+        <p className="text-white/40 text-[13px] mb-10">Choose a view to continue</p>
+        <div className="flex gap-4 flex-wrap justify-center">
+          <button
+            onClick={() => { setAdminView('admin'); sessionStorage.setItem(ADMIN_VIEW_KEY, 'admin') }}
+            className="flex flex-col items-center gap-3 p-6 rounded-lg border border-white/10 hover:border-[#0078d4] hover:bg-white/5 transition-all min-w-[180px]"
+          >
+            <span className="text-[32px]">⚙️</span>
+            <span className="text-white text-[14px] font-medium">Admin Panel</span>
+            <span className="text-white/40 text-[11px]">Manage users, content, analytics</span>
+          </button>
+          <button
+            onClick={() => { setAdminView('portfolio'); sessionStorage.setItem(ADMIN_VIEW_KEY, 'portfolio') }}
+            className="flex flex-col items-center gap-3 p-6 rounded-lg border border-white/10 hover:border-[#0078d4] hover:bg-white/5 transition-all min-w-[180px]"
+          >
+            <span className="text-[32px]">👁️</span>
+            <span className="text-white text-[14px] font-medium">Portfolio</span>
+            <span className="text-white/40 text-[11px]">View as a regular visitor</span>
+          </button>
+        </div>
+        <button
+          onClick={() => { sessionStorage.removeItem(ADMIN_VIEW_KEY); void user }}
+          className="mt-10 text-white/40 hover:text-white text-[12px]"
+          style={{ display: 'none' }}
+        >
+          {/* placeholder */}
+        </button>
+      </div>
+    )
+  }
+
+  // Admin in portfolio view → show regular desktop with a switch button.
+  if (user.isAdmin && adminView === 'portfolio') {
+    return <PortfolioDesktop />
+  }
+
+  // Admin in admin view → Admin Panel (no public URL).
+  if (user.isAdmin && adminView === 'admin') {
+    return <AdminPanel onSwitchToPortfolio={() => { setAdminView('portfolio'); sessionStorage.setItem(ADMIN_VIEW_KEY, 'portfolio') }} />
+  }
+
+  // Regular approved user → portfolio desktop.
   return <PortfolioDesktop />
 }

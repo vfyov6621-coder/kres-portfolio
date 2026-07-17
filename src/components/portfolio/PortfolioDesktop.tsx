@@ -154,16 +154,13 @@ export default function PortfolioDesktop() {
       className="fixed inset-0 flex flex-col overflow-hidden bg-black text-black"
       style={{ fontFamily: 'var(--font-geist-sans), system-ui, sans-serif' }}
     >
-      {/* Desktop area */}
+      {/* Desktop area — Win10 style with subtle gradient wallpaper */}
       <div
         ref={desktopRef}
         onPointerDown={onDesktopPointerDown}
         className="relative flex-1 overflow-hidden"
         style={{
-          backgroundColor: '#0e0e0e',
-          backgroundImage:
-            'radial-gradient(circle, rgba(255,255,255,0.07) 1px, transparent 1px)',
-          backgroundSize: '18px 18px',
+          background: 'linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%)',
         }}
       >
         <DesktopIcons

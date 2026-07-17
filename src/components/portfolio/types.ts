@@ -36,33 +36,34 @@ export const WINDOWS: WindowMeta[] = [
   { id: 'users', labelKey: 'desk.users', Icon: Users, adminOnly: true },
 ]
 
-export const DEFAULT_WINDOW_W = 520
-export const DEFAULT_WINDOW_H = 400
-export const WINDOW_CASCADE = 26
+export const DEFAULT_WINDOW_W = 560
+export const DEFAULT_WINDOW_H = 420
+export const WINDOW_CASCADE = 28
 
-// Classic Win98 raised/outset bevel (4-side, two-tone).
+// Win10 flat style — no bevels, just subtle shadows + thin borders.
 export const BEVEL_OUT: CSSProperties = {
-  boxShadow:
-    'inset -1px -1px 0 0 #000, inset 1px 1px 0 0 #fff, inset -2px -2px 0 0 #808080, inset 2px 2px 0 0 #dfdfdf',
+  boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+  border: '1px solid rgba(0,0,0,0.1)',
 }
 
-// Classic Win98 pressed/inset bevel (4-side, two-tone).
 export const BEVEL_IN: CSSProperties = {
-  boxShadow:
-    'inset 1px 1px 0 0 #000, inset -1px -1px 0 0 #fff, inset 2px 2px 0 0 #808080, inset -2px -2px 0 0 #dfdfdf',
+  boxShadow: 'inset 0 0 0 1px rgba(0,0,0,0.08)',
 }
 
-// Thin single-pixel bevels (for buttons / tiles).
 export const BEVEL_OUT_THIN: CSSProperties = {
-  boxShadow: 'inset -1px -1px 0 0 #000, inset 1px 1px 0 0 #fff',
+  border: '1px solid rgba(0,0,0,0.12)',
+  boxShadow: 'none',
 }
 
 export const BEVEL_IN_THIN: CSSProperties = {
-  boxShadow: 'inset 1px 1px 0 0 #000, inset -1px -1px 0 0 #fff',
+  boxShadow: 'inset 0 0 0 1px rgba(0,0,0,0.08)',
+  border: 'none',
 }
 
-// Win98 face color (the classic gray).
-export const FACE = '#c0c0c0'
-export const FACE_DARK = '#9a9a9a'
-export const FACE_LIGHT = '#d8d8d8'
+// Win10 color palette
+export const FACE = '#f3f3f3'
+export const FACE_DARK = '#e8e8e8'
+export const FACE_LIGHT = '#ffffff'
+export const ACCENT = '#0078d4' // Win10 blue accent
+export const ACCENT_HOVER = '#1a86d9'
 export const SHADOW = '#808080'
